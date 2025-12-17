@@ -1,0 +1,152 @@
+---
+title: "Fit models"
+output: html_document
+date: "2025-08-20"
+---
+
+Loading R packages:
+```{r}
+library(tidyverse)
+library(h2o)
+```
+
+Loading data to model:
+```{r}
+data_to_mod <- readRDS("data_to_mod.rds")
+```
+
+Be aware that the next section only works, if java is installed on the device.
+Run 'system("java -version")' in the console to check whether it is installed correctly or not.
+If not: install from https://www.oracle.com/java/technologies/downloads/
+Additionally you may need to set where Java lies in the system.
+This is done as follows:
+1. Find the Java installation path
+2. Open Environmental Variables
+3. Under System Variables add:
+  - Variable name: JAVA_HOME
+  - Variable value: The installation path
+4. Add %JAVA_HOME%\bin to Path if not already there.
+
+Fitting the model with all features:
+All features except x1 and y1:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_to_mod)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed=2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X = setdiff(h2o.names(data_train), c(Y, "x1", "y1"))
+```
+
+Auto Machine Learning:
+```{r}
+(mod_h2o <- h2o.automl(x=X, y=Y, training_frame = data_train, max_models = 10, seed = 2025))
+```
+
+Getting the best model:
+```{r}
+lb <- mod_h2o@leaderboard
+print(lb, n = nrow(lb))
+lbdf <- as.data.frame(lb)
+```
+
+
+Choosing GBM-model:
+```{r}
+set.seed(2025)
+modelname <- "GBM_2_AutoML_1_20251215_104212" # write the chosen model name from the "lbdf" dataframe
+cmod <- grep(modelname, lbdf$model_id, value=T)
+cmod <- h2o.getModel(cmod)
+summary(cmod)
+```
+
+
+Save the model:
+```{r}
+set.seed(2025)
+h2o.saveModel(object = cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+```
+
+Choosing GLM-model:
+```{r}
+set.seed(2025)
+GLM_modelname <- "GLM_1_AutoML_1_20251215_104212" # write the chosen model name from the "lbdf" dataframe
+GLM_cmod <- grep(GLM_modelname, lbdf$model_id, value=T)
+GLM_cmod <- h2o.getModel(GLM_cmod)
+summary(GLM_cmod)
+```
+
+Save GLM model:
+```{r}
+set.seed(2025)
+h2o.saveModel(object = GLM_cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+h2o.shutdown(prompt=FALSE)
+```
+
+
+Fitting model with only 2 features (distance + angle):
+```{r}
+data_to_mod <- data_to_mod %>%
+        dplyr::select(is_goal, distance_to_goal_line, angle_to_goal)
+
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_to_mod)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed = 2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X = setdiff(h2o.names(data_train), Y)
+```
+
+Auto Machine Learning:
+```{r}
+(mod_h2o <- h2o.automl(x=X, y=Y, training_frame = data_train, max_models = 10, seed = 2025))
+```
+
+Printing leaderboard:
+```{r}
+lb <- mod_h2o@leaderboard
+print(lb, n = nrow(lb))
+lbdf <- as.data.frame(lb)
+```
+
+Getting the best model:
+```{r}
+set.seed(2025)
+modelname <- "GBM_2_AutoML_1_20251215_104930" # write the chosen model name from the "lbdf" dataframe
+cmod <- grep(modelname, lbdf$model_id, value=T)
+cmod <- h2o.getModel(cmod)
+summary(cmod)
+```
+
+
+
+Save the model:
+```{r}
+set.seed(2025)
+h2o.saveModel(object = cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+```
+
+GLM_model:
+```{r}
+set.seed(2025)
+GLM_modelname <- "GLM_1_AutoML_1_20251215_104930" # write the chosen model name from the "lbdf" dataframe
+GLM_cmod <- grep(GLM_modelname, lbdf$model_id, value=T)
+GLM_cmod <- h2o.getModel(GLM_cmod)
+summary(GLM_cmod)
+```
+
+Save GLM model:
+```{r}
+h2o.saveModel(object = GLM_cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+h2o.shutdown(prompt=FALSE)
+```
+
+
+
+
+
+

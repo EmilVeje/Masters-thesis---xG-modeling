@@ -1,0 +1,321 @@
+---
+title: "Exploratory analysis"
+output: html_document
+date: "2025-08-20"
+---
+
+
+Loading R packages
+```{r}
+library(tidyverse)
+library(DataExplorer)
+library(ggpubr)
+library(gridExtra)
+```
+
+Loading RDS file with unblocked shots:
+```{r}
+shots <- readRDS("all_unblocked_shots.rds")
+```
+
+Loading RDS file with unblocked shots with extra columns added:
+```{r}
+shots_extra <- readRDS("all_unblocked_shots_extra.rds")
+```
+
+
+Feature edition/creation:
+```{r}
+shotsB <- shots %>%
+  arrange(matchId, matchPeriod, teamId, eventSec) %>%
+  mutate(eventSec2 = ifelse(matchPeriod == "2H", eventSec + 2700, eventSec),
+         time_prev = ifelse(matchId == lag(matchId) & matchPeriod == lag(matchPeriod) & teamId == lag(teamId), eventSec - lag(eventSec), -1),
+         time_prev = ifelse(is.na(time_prev), -1, time_prev),
+         skilled_foot = ifelse(body_part == "head/body", body_part,
+                               ifelse(foot == "both" & body_part %in% c("left", "right"), "Yes",
+                               ifelse(body_part == foot, "Yes", "No"))),
+         x_meter = x1 * 105/100,
+         y_meter = y1 * 68/100,
+         distance_to_goal_line = sqrt((105 - x_meter)^2 + (32.5 - y_meter)^2),
+         angle_to_goal = atan2( (7.32 * (105 - x_meter) ) , ( (105 - x_meter)^2 + (32.5 - y_meter)^2 - (7.32/2)^2 )) * 180/pi) %>%
+  filter(!is.na(skilled_foot))
+
+data_to_mod <- shotsB %>%
+        dplyr::select(is_goal, eventSec, matchPeriod, x1, y1, is_CA, 
+                      time_prev, skilled_foot, distance_to_goal_line, angle_to_goal) %>%
+        mutate(is_goal = factor(is_goal),
+               matchPeriod = factor(matchPeriod),
+               is_CA = factor(is_CA),
+               skilled_foot = factor(skilled_foot))
+
+write_rds(data_to_mod, "data_to_mod.rds")
+```
+
+Feature edition/creation with big dataset:
+```{r}
+shotsB_extra <- shots_extra %>%
+  arrange(matchId, matchPeriod, teamId, eventSec) %>%
+  mutate(eventSec2 = ifelse(matchPeriod == "2H", eventSec + 2700, eventSec),
+         time_prev = ifelse(matchId == lag(matchId) & matchPeriod == lag(matchPeriod) & teamId == lag(teamId), eventSec - lag(eventSec), -1),
+         time_prev = ifelse(is.na(time_prev), -1, time_prev),
+         skilled_foot = ifelse(body_part == "head/body", body_part,
+                               ifelse(foot == "both" & body_part %in% c("left", "right"), "Yes",
+                               ifelse(body_part == foot, "Yes", "No"))),
+         Is_Rebound = ifelse(time_prev <= 10 & time_prev > 0, 1, 0),
+         x_meter = x1 * 105/100,
+         y_meter = y1 * 68/100,
+         distance_to_goal_line = sqrt((105 - x_meter)^2 + (32.5 - y_meter)^2),
+         angle_to_goal = atan2( (7.32 * (105 - x_meter) ) , ( (105 - x_meter)^2 + (32.5 - y_meter)^2 - (7.32/2)^2 )) * 180/pi) %>%
+  filter(!is.na(skilled_foot))
+
+data_to_mod_extra <- shotsB_extra %>%
+        dplyr::select(is_goal, eventSec, matchPeriod, x1, y1, is_CA, 
+                      time_prev, skilled_foot, distance_to_goal_line, angle_to_goal, position,                              Is_Rebound) %>%
+        mutate(is_goal = factor(is_goal),
+               matchPeriod = factor(matchPeriod),
+               is_CA = factor(is_CA),
+               skilled_foot = factor(skilled_foot),
+               position = factor(position))
+
+data_to_mod_foot <- shotsB_extra %>%
+        dplyr::select(is_goal, eventSec, matchPeriod, x1, y1, is_CA, 
+                      time_prev, skilled_foot, distance_to_goal_line, angle_to_goal, position,
+                      Is_Rebound, foot) %>%
+        mutate(is_goal = factor(is_goal),
+               matchPeriod = factor(matchPeriod),
+               is_CA = factor(is_CA),
+               skilled_foot = factor(skilled_foot),
+               foot = factor(foot))
+
+write_rds(data_to_mod_extra, "data_to_mod_extra.rds")
+write_rds(data_to_mod_foot, "data_to_mod_foot.rds")
+```
+
+
+
+
+Count of Counter attacks:
+```{r}
+data_to_mod %>%
+  count(is_CA == 1)
+```
+
+Count of Counter attacks resulting in a goal:
+```{r}
+data_to_mod %>%
+  filter(is_CA == 1, is_goal == 1) %>%
+  summarise(n = n())
+```
+
+Ratio:
+```{r}
+mean(data_to_mod$is_goal[data_to_mod$is_CA == 1] == 1)
+```
+
+
+
+Exploratory analysis:
+```{r}
+plot_correlation(data_to_mod)
+ggsave("corr_plot.png", width = 10, height = 5)
+
+plot_bar(data_to_mod, ncol = 2)
+ggsave("bars_plot.png", width = 10, height = 5)
+
+plot_density(data_to_mod, ncol = 3)
+ggsave("dens_plot.png", width = 10, height = 5)
+
+```
+
+Plot with GGplot:
+```{r}
+data_to_mod %>%
+  select(is_goal, eventSec, distance_to_goal_line, angle_to_goal, time_prev, x1, y1) %>%
+  pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, color = factor(is_goal))) +
+  geom_density(size = 1) +
+  facet_wrap(~variable, scales = "free", ncol = 3) +
+  scale_color_manual(values = c("0" = "blue", "1" = "red"),
+                    labels = c("No Goal", "Goal")) +
+  labs(color = "Outcome") +
+  theme_bw()
+
+ggsave("dens_goal_plot.png", width = 10, height = 5)
+```
+
+
+
+
+Plots with foot dataset:
+```{r}
+plot_correlation(data_to_mod_foot)
+ggsave("corr_plot_foot.png", width = 10, height = 5)
+
+plot_bar(data_to_mod_foot, ncol = 2)
+ggsave("bars_plot_foot.png", width = 10, height = 5)
+
+plot_density(data_to_mod_foot, ncol = 3)
+ggsave("dens_plot_foot.png", width = 10, height = 5)
+```
+
+Bars plot on skilled foot and counter attack:
+```{r}
+plot_bar(data_to_mod[, c("is_goal", "skilled_foot", "is_CA")], by = "is_goal", ncol = 2)
+```
+
+Bars plot on counter attacks:
+```{r}
+data_to_mod %>%
+  select(is_goal, is_CA) %>%
+  pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = factor(is_goal))) +
+  geom_bar(position = "dodge") +  # Side-by-side bars
+  facet_wrap(~variable, scales = "free_x", ncol = 2) +
+  scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
+                    labels = c("No Goal", "Goal")) +
+  labs(fill = "Outcome", x = NULL, y = "Count") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+
+
+Splitting dataset:
+```{r}
+data_right <- data_to_mod_foot %>% filter(foot == "right") %>% select(-foot)
+
+data_left <- data_to_mod_foot %>% filter(foot == "left") %>% select(-foot)
+
+write_rds(data_right, "data_right.rds")
+write_rds(data_left, "data_left.rds")
+```
+
+Plots with right-foot dataset:
+```{r}
+plot_correlation(data_right %>% select(-x1, -y1), 
+                 geom_text_args = list(size = 0))
+ggsave("corr_plot_right.png", width = 10, height = 5)
+
+plot_bar(data_right, ncol = 2)
+ggsave("bars_plot_right.png", width = 10, height = 5)
+
+plot_density(data_right, ncol = 3)
+ggsave("dens_plot_right.png", width = 10, height = 5)
+```
+
+
+
+
+
+Bars plot on skilled foot for right-footed players:
+```{r}
+data_right %>%
+  select(is_goal, skilled_foot) %>%
+  pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = factor(is_goal))) +
+  geom_bar(position = "dodge") +  # Side-by-side bars
+  facet_wrap(~variable, scales = "free_x", ncol = 2) +
+  scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
+                    labels = c("No Goal", "Goal")) +
+  labs(fill = "Outcome", x = NULL, y = "Count") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+
+
+Plots with left-foot dataset:
+```{r}
+plot_correlation(data_left %>% select(-x1, -y1), 
+                 geom_text_args = list(size = 0))
+ggsave("corr_plot_left.png", width = 10, height = 5)
+
+plot_bar(data_left, ncol = 2)
+ggsave("bars_plot_left.png", width = 10, height = 5)
+
+plot_density(data_left, ncol = 3)
+ggsave("dens_plot_left.png", width = 10, height = 5)
+```
+
+Bars plot on skilled foot for left-footed players:
+```{r}
+data_left %>%
+  select(is_goal, skilled_foot) %>%
+  pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = factor(is_goal))) +
+  geom_bar(position = "dodge") +  # Side-by-side bars
+  facet_wrap(~variable, scales = "free_x", ncol = 2) +
+  scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
+                    labels = c("No Goal", "Goal")) +
+  labs(fill = "Outcome", x = NULL, y = "Count") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Comparison:
+```{r}
+p1 <- data_right %>%
+  select(is_goal, skilled_foot) %>%
+  pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = factor(is_goal))) +
+  geom_bar(position = "dodge") +  # Side-by-side bars
+  facet_wrap(~variable, scales = "free_x", ncol = 1,
+             labeller = labeller(variable = c("skilled_foot" = "Right"))) +
+  scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
+                    labels = c("No Goal", "Goal")) +
+  labs(fill = "Outcome", x = NULL, y = "Count") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+p2 <- data_left %>%
+  select(is_goal, skilled_foot) %>%
+  pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = factor(is_goal))) +
+  geom_bar(position = "dodge") +  # Side-by-side bars
+  facet_wrap(~variable, scales = "free_x", ncol = 1,
+             labeller = labeller(variable = c("skilled_foot" = "Left"))) +
+  scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
+                    labels = c("No Goal", "Goal")) +
+  labs(fill = "Outcome", x = NULL, y = "Count") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+legend <- get_legend(p1 + theme(legend.position = "top"))
+
+grid.arrange(
+  legend,
+  arrangeGrob(p2, p1, ncol = 2),
+  ncol = 1, heights = c(0.1, 0.9)
+)
+```
+
+```{r}
+png(filename = "Comparison_foot.png", width = 8, height = 5, units = "in", res = 300)
+grid.arrange(
+  legend,
+  arrangeGrob(p2, p1, ncol = 2),
+  ncol = 1, heights = c(0.1, 0.9)
+)
+dev.off()
+```
+
+
+
+Plots with big data set:
+```{r}
+plot_correlation(data_to_mod_extra)
+ggsave("corr_plot_extra.png", width = 10, height = 5)
+
+plot_bar(data_to_mod_extra[, c("Is_Rebound", "position")], ncol = 1)
+ggsave("bars_plot_extra.png", width = 10, height = 5)
+
+plot_density(data_to_mod_extra, ncol = 3)
+ggsave("dens_plot_extra.png", width = 10, height = 5)
+```
+
+
+
+
+
+
+

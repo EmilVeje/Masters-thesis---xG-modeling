@@ -1,0 +1,95 @@
+---
+title: "Hypothesis test"
+output: html_document
+date: "2025-11-24"
+---
+
+Loading R packages:
+```{r}
+library(tidyverse)
+library(h2o)
+library(pROC)
+library(caret)
+library(ROCR)
+library(DALEX)
+library(pdp)
+library(ggsoccer)
+library(RColorBrewer)
+library(gridExtra)
+library(h2o)
+library(ingredients)
+library(pROC)
+```
+
+Loading data used to model:
+```{r}
+data_to_mod <- readRDS("data_to_mod_foot.rds")
+```
+
+Chi squared test:
+```{r}
+test_hyp <- table(data_to_mod$foot, data_to_mod$skilled_foot)
+chisq.test(test_hyp)
+```
+
+Setting testing dataset and features:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_to_mod)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed=2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+data_test_r <- as.data.frame(data_test)
+
+Y = "is_goal"
+X2 = setdiff(h2o.names(data_train), Y)
+X1 = c("distance_to_goal_line", "angle_to_goal")
+```
+
+
+Loading models:
+```{r}
+modelname2_left <- "GBM_2_AutoML_1_20251215_160153"
+cmod2_left <- h2o.loadModel(paste0("saved-models/", modelname2_left))
+
+modelname2_right <- "GBM_2_AutoML_8_20251215_154156"
+cmod2_right <- h2o.loadModel(paste0("saved-models/", modelname2_right))
+```
+
+Predictions:
+```{r}
+pred_left <- h2o.predict(cmod2_left, newdata = data_test)
+pred_right <- h2o.predict(cmod2_right, newdata = data_test)
+pred_left_r <- as.data.frame(as.numeric(as.character(pred_left)))
+pred_right_r <- as.data.frame(as.numeric(as.character(pred_right)))
+```
+
+## T-test ##
+Create weak foot dataset:
+```{r}
+data_weak <- data_to_mod %>% filter(skilled_foot == "No")
+data_h2o_weak <- as.h2o(data_weak)
+```
+
+Compute predictions on GBMs:
+```{r}
+pred_left <- h2o.predict(cmod2_left, newdata = data_h2o_weak)
+pred_right <- h2o.predict(cmod2_right, newdata = data_h2o_weak)
+pred_left_r <- as.data.frame(as.numeric(as.character(pred_left)))
+pred_right_r <- as.data.frame(as.numeric(as.character(pred_right)))
+```
+
+Difference in predictions:
+```{r}
+diff <- pred_left_r$p1 - pred_right_r$p1
+```
+
+Compute t-test:
+```{r}
+t_test_result <- t.test(pred_left_r$p1, pred_right_r$p1, paired = TRUE)
+t_test_result
+```
+
+
+
+

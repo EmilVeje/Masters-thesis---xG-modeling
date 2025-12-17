@@ -1,0 +1,117 @@
+---
+title: "Fit right-footed models"
+output: html_document
+date: "2025-10-07"
+---
+
+Loading R packages:
+```{r}
+library(tidyverse)
+library(h2o)
+```
+
+Loading data to model:
+```{r}
+data_right <- readRDS("data_right.rds")
+data_right <- data_right %>%
+  mutate(position = case_when(
+    position %in% c("Goalkeeper", "Defender") ~ "Defender",
+    TRUE ~ as.character(position)
+  ),
+  position = factor(position, levels = c("Defender", "Midfielder", "Forward")))
+```
+
+Be aware that the next section only works, if java is installed on the device.
+Run 'system("java -version")' in the console to check whether it is installed correctly or not.
+If not: install from https://www.oracle.com/java/technologies/downloads/
+Additionally you may need to set where Java lies in the system.
+This is done as follows:
+1. Find the Java installation path
+2. Open Environmental Variables
+3. Under System Variables add:
+  - Variable name: JAVA_HOME
+  - Variable value: The installation path
+4. Add %JAVA_HOME%\bin to Path if not already there.
+
+Fitting the model with all features:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_right)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed=2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X = setdiff(h2o.names(data_train), c(Y, "x1", "y1"))
+```
+
+Auto Machine Learning:
+```{r}
+(mod_h2o <- h2o.automl(x=X, y=Y, training_frame = data_train, max_models = 10, seed = 2025))
+```
+
+Getting the best model:
+```{r}
+lb <- mod_h2o@leaderboard
+print(lb, n = nrow(lb))
+lbdf <- as.data.frame(lb)
+```
+
+Choosing GBM-model:
+```{r}
+modelname <- "GBM_2_AutoML_8_20251215_154156" # write the chosen model name from the "lbdf" dataframe
+cmod <- grep(modelname, lbdf$model_id, value=T)
+cmod <- h2o.getModel(cmod)
+summary(cmod)
+```
+
+
+Save the model:
+```{r}
+h2o.saveModel(object = cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+h2o.shutdown(prompt=FALSE)
+```
+
+
+Fitting model with only 2 features (distance + angle):
+```{r}
+data_right <- data_right %>%
+        dplyr::select(is_goal, distance_to_goal_line, angle_to_goal)
+
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_right)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed = 2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X = setdiff(h2o.names(data_train), Y)
+```
+
+Auto Machine Learning:
+```{r}
+(mod_h2o <- h2o.automl(x=X, y=Y, training_frame = data_train, max_models = 10, seed = 2025))
+```
+
+Getting leaderboard:
+```{r}
+lb <- mod_h2o@leaderboard
+print(lb, n = nrow(lb))
+lbdf <- as.data.frame(lb)
+```
+
+Choosing GBM:
+```{r}
+modelname <- "GBM_2_AutoML_1_20251215_155305"
+cmod <- grep(modelname, lbdf$model_id, value=T)
+cmod <- h2o.getModel(cmod)
+summary(cmod)
+```
+
+
+Save the model:
+```{r}
+h2o.saveModel(object = cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+h2o.shutdown(prompt=FALSE)
+```
+

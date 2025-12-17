@@ -1,0 +1,490 @@
+---
+title: "Mixture models analysis"
+output: html_document
+date: "2025-10-24"
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(mclust)
+library(gamlss.mx)
+library(mixtools)
+library(mixR)
+library(flexmix)
+library(betareg)
+library(gamlss)
+library(h2o)
+library(gridExtra)
+```
+
+Loading data used to model:
+```{r}
+data_to_mod <- readRDS("data_to_mod_extra.rds")
+
+data_to_mod <- data_to_mod %>%
+  mutate(position = factor(position, 
+                          levels = c("Goalkeeper", "Defender", "Midfielder", "Forward")))
+```
+
+Setting testing dataset and features:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_to_mod)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed=2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X = setdiff(h2o.names(data_train), c(Y, "x1", "y1"))
+```
+
+
+Load models with all features:
+```{r}
+modelname2 <- "GBM_2_AutoML_7_20251215_152444" # change this name if you want to use another model saved by yourself
+cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
+```
+
+Predictions:
+```{r}
+set.seed(2025)
+pred_2 <- h2o.predict(cmod2, newdata = data_test)
+pred_r_2 <- as.data.frame(pred_2)
+```
+
+Defining xG:
+```{r}
+xg <- pred_r_2$p1
+```
+
+Prepare xg for Beta models (avoid boundary issues):
+```{r}
+eps <- 1e-6
+xg_beta <- pmin(pmax(xg, eps), 1 - eps)
+```
+
+Helper functions:
+```{r}
+logit <- function(p) log(p / (1 - p))
+inv_logit <- function(x) 1 / (1 + exp(-x))
+```
+
+Function to extract summary from gamlss mixture models:
+```{r}
+extract_gamlss_summary <- function(model, model_name) {
+  summary_list <- lapply(model$models, function(m) {
+    mu_logit <- coef(m, what = "mu")[1]
+    sigma_log <- coef(m, what = "sigma")[1]
+    
+    mu <- plogis(mu_logit)
+    sigma <- exp(sigma_log)
+    
+    shape1 <- mu * (1 / sigma - 1)
+    shape2 <- (1 - mu) * (1 / sigma - 1)
+    
+    data.frame(mu = mu, sigma = sigma, shape1 = shape1, shape2 = shape2)
+  })
+  
+  summary_df <- do.call(rbind, summary_list)
+  summary_df$weight <- model$prob
+  summary_df$component <- seq_len(nrow(summary_df))
+  summary_df$model <- model_name
+  
+  summary_df[, c("model", "component", "weight", "mu", "sigma", "shape1", "shape2")]
+}
+```
+
+
+Fitting Gaussian mixture model using mclust package:
+```{r}
+set.seed(2025)
+Gaus_mix_model <- Mclust(xg)
+
+cat("Gaussian Mixture Model\n")
+cat("Optimal components:", Gaus_mix_model$G, "\n")
+cat("Component weights:", round(Gaus_mix_model$parameters$pro, 4), "\n\n")
+
+gaussian_summary <- data.frame(
+  Model = "Gaussian",
+  Component = 1:Gaus_mix_model$G,
+  Weight = round(Gaus_mix_model$parameters$pro, 4),
+  Mean = round(Gaus_mix_model$parameters$mean, 4),
+  Variance = round(Gaus_mix_model$parameters$variance$sigmasq, 6)
+)
+print(gaussian_summary)
+```
+
+Logit-Normal Mixture model:
+```{r}
+set.seed(2025)
+xg_logit <- logit(pmin(pmax(xg, eps), 1 - eps))
+
+LogitNorm_mix <- Mclust(xg_logit)
+
+cat("\nLogit-Normal Mixture Model\n")
+cat("Optimal components:", LogitNorm_mix$G, "\n")
+cat("Component weights:", round(LogitNorm_mix$parameters$pro, 4), "\n\n")
+
+logitnorm_summary <- data.frame(
+  Model = "Logit-Normal",
+  Component = 1:LogitNorm_mix$G,
+  Weight = round(LogitNorm_mix$parameters$pro, 4),
+  Mean = round(LogitNorm_mix$parameters$mean, 4),
+  Variance = round(LogitNorm_mix$parameters$variance$sigmasq, 6)
+)
+print(logitnorm_summary)
+```
+
+Beta mixture model:
+```{r}
+set.seed(2025)
+Beta_mix_model <- gamlssMXfits(
+  n = 8,
+  formula = xg_beta ~ 1,
+  family = BE,
+  data = data.frame(xg_beta = xg_beta)
+)
+
+cat("\nBeta Mixture Model\n")
+cat("Optimal components:", length(Beta_mix_model$models), "\n")
+cat("Component weights:", round(Beta_mix_model$prob, 4), "\n\n")
+
+beta_summary <- extract_gamlss_summary(Beta_mix_model, "Beta")
+print(beta_summary)
+```
+
+Zero-Inflated mixture model:
+```{r}
+set.seed(2025)
+ZI_Beta_mix <- gamlssMXfits(
+  n = 8,
+  formula = xg_beta ~ 1,
+  family = BEINF,
+  data = data.frame(xg_beta = xg_beta)
+)
+
+cat("\nZero-Inflated Beta Mixture Model\n")
+cat("Optimal components:", length(ZI_Beta_mix$models), "\n")
+cat("Component weights:", round(ZI_Beta_mix$prob, 4), "\n\n")
+
+# Extract with nu parameter
+zi_summary_list <- lapply(ZI_Beta_mix$models, function(m) {
+  mu_logit <- coef(m, what = "mu")[1]
+  sigma_log <- coef(m, what = "sigma")[1]
+  nu_logit <- coef(m, what = "nu")[1]
+  
+  mu <- plogis(mu_logit)
+  sigma <- exp(sigma_log)
+  nu <- plogis(nu_logit)
+  
+  shape1 <- mu * (1 / sigma - 1)
+  shape2 <- (1 - mu) * (1 / sigma - 1)
+  
+  data.frame(mu = mu, sigma = sigma, nu = nu, shape1 = shape1, shape2 = shape2)
+})
+
+zi_beta_summary <- do.call(rbind, zi_summary_list)
+zi_beta_summary$weight <- ZI_Beta_mix$prob
+zi_beta_summary$component <- seq_len(nrow(zi_beta_summary))
+zi_beta_summary$model <- "ZI-Beta"
+
+zi_beta_summary <- zi_beta_summary[, c("model", "component", "weight", "mu", "sigma", "nu", "shape1", "shape2")]
+print(zi_beta_summary)
+```
+
+
+Gamma Mixture model:
+```{r}
+set.seed(2025)
+Gamma_mix_model <- gamlssMXfits(
+  n = 8,
+  formula = xg ~ 1,
+  family = GA,
+  data = data.frame(xg = xg)
+)
+
+cat("\nGamma Mixture Model\n")
+cat("Optimal components:", length(Gamma_mix_model$models), "\n")
+cat("Component weights:", round(Gamma_mix_model$prob, 4), "\n\n")
+
+gamma_summary <- extract_gamlss_summary(Gamma_mix_model, "Gamma")
+print(gamma_summary)
+```
+
+Helper function to calculate AIC/BIC for gamlss mixture models
+```{r}
+calc_ic_gamlss <- function(model, data, family_type = "beta") {
+  n <- length(data)
+  K <- length(model$models)
+  
+  # Calculate log-likelihood
+  loglik <- sum(log(sapply(data, function(x) {
+    d <- 0
+    for (k in 1:K) {
+      mu <- model$models[[k]]$mu.fv[1]
+      sigma <- model$models[[k]]$sigma.fv[1]
+      
+      if (family_type == "beta") {
+        shape1 <- mu * (1 / sigma - 1)
+        shape2 <- (1 - mu) * (1 / sigma - 1)
+        d <- d + model$prob[k] * dbeta(x, shape1, shape2)
+      } else if (family_type == "gamma") {
+        shape <- 1 / sigma^2
+        scale <- mu * sigma^2
+        d <- d + model$prob[k] * dgamma(x, shape = shape, scale = scale)
+      }
+    }
+    max(d, 1e-10)  # Avoid log(0)
+  })))
+  
+  # Parameters: mu + sigma for each component + (K-1) mixing weights
+  num_params <- K * 2 + (K - 1)
+  
+  aic <- -2 * loglik + 2 * num_params
+  bic <- -2 * loglik + num_params * log(n)
+  
+  list(logLik = loglik, AIC = aic, BIC = bic, df = num_params)
+}
+
+# Calculate for all gamlss models
+beta_ic <- calc_ic_gamlss(Beta_mix_model, xg_beta, "beta")
+zi_beta_ic <- calc_ic_gamlss(ZI_Beta_mix, xg_beta, "beta")
+gamma_ic <- calc_ic_gamlss(Gamma_mix_model, xg, "gamma")
+```
+
+Helper function for AIC and BIC for Logit-Normal:
+```{r}
+calc_ic_logitnorm <- function(model, data, eps = 1e-6) {
+  x <- pmin(pmax(data, eps), 1 - eps)
+  z <- logit(x)
+  
+  n <- length(x)
+  K <- model$G
+  
+  loglik <- sum(log(sapply(seq_along(x), function(i) {
+    d <- 0
+    for (k in 1:K) {
+      mu <- model$parameters$mean[k]
+      sd <- sqrt(model$parameters$variance$sigmasq[k])
+      pi_k <- model$parameters$pro[k]
+      
+      d <- d + pi_k *
+        dnorm(z[i], mean = mu, sd = sd) / (x[i] * (1 - x[i]))
+    }
+    max(d, 1e-12)
+  })))
+  
+  # parameters: mean + variance per component + (K-1) weights
+  num_params <- K * 2 + (K - 1)
+  
+  aic <- -2 * loglik + 2 * num_params
+  bic <- -2 * loglik + num_params * log(n)
+  
+  list(logLik = loglik, AIC = aic, BIC = bic, df = num_params)
+}
+
+# Calculate
+logitnorm_ic <- calc_ic_logitnorm(LogitNorm_mix, xg)
+```
+
+
+Model comparisons:
+```{r}
+model_comparison <- data.frame(
+  Model = c("Gaussian", "Logit-Normal", "Beta", "ZI-Beta", "Gamma"),
+  Components = c(
+    Gaus_mix_model$G, 
+    LogitNorm_mix$G, 
+    length(Beta_mix_model$models),
+    length(ZI_Beta_mix$models),
+    length(Gamma_mix_model$models)
+  ),
+  LogLik = c(
+    logLik(Gaus_mix_model),
+    logitnorm_ic$logLik,
+    beta_ic$logLik,
+    zi_beta_ic$logLik,
+    gamma_ic$logLik
+  ),
+  AIC = c(
+    AIC(Gaus_mix_model),
+    logitnorm_ic$AIC,
+    beta_ic$AIC,
+    zi_beta_ic$AIC,
+    gamma_ic$AIC
+  ),
+  BIC = c(
+    BIC(Gaus_mix_model),
+    logitnorm_ic$BIC,
+    beta_ic$BIC,
+    zi_beta_ic$BIC,
+    gamma_ic$BIC
+  )
+)
+
+model_comparison <- model_comparison %>%
+  mutate(across(c(LogLik, AIC, BIC), ~round(., 2))) %>%
+  arrange(BIC)
+
+cat("\nModel Comparison (sorted by BIC):\n")
+print(model_comparison)
+cat("\nBest model by AIC:", model_comparison$Model[which.min(model_comparison$AIC)], "\n")
+cat("Best model by BIC:", model_comparison$Model[which.min(model_comparison$BIC)], "\n")
+```
+
+
+
+
+Plot with GGplot:
+```{r}
+# Create density curves for all models
+x_seq <- seq(0.001, 0.999, length.out = 500)
+
+# Gaussian
+gaussian_density <- sapply(x_seq, function(x) {
+  d <- 0
+  for (k in 1:Gaus_mix_model$G) {
+    d <- d + Gaus_mix_model$parameters$pro[k] *
+      dnorm(x, mean = Gaus_mix_model$parameters$mean[k],
+            sd = sqrt(Gaus_mix_model$parameters$variance$sigmasq[k]))
+  }
+  d
+})
+
+# Beta
+beta_density <- sapply(x_seq, function(x) {
+  d <- 0
+  for (k in 1:length(Beta_mix_model$models)) {
+    mu <- Beta_mix_model$models[[k]]$mu.fv[1]
+    sigma <- Beta_mix_model$models[[k]]$sigma.fv[1]
+    shape1 <- mu * (1/sigma - 1)
+    shape2 <- (1 - mu) * (1/sigma - 1)
+    d <- d + Beta_mix_model$prob[k] * dbeta(x, shape1, shape2)
+  }
+  d
+})
+
+# Gamma
+gamma_density <- sapply(x_seq, function(x) {
+  d <- 0
+  for (k in 1:length(Gamma_mix_model$models)) {
+    mu <- Gamma_mix_model$models[[k]]$mu.fv[1]
+    sigma <- Gamma_mix_model$models[[k]]$sigma.fv[1]
+    shape <- 1 / sigma^2
+    scale <- mu * sigma^2
+    d <- d + Gamma_mix_model$prob[k] * dgamma(x, shape = shape, scale = scale)
+  }
+  d
+})
+
+# Logit-Normal
+logitnorm_density <- sapply(x_seq, function(x) {
+  d <- 0
+  p <- pmin(pmax(x, eps), 1 - eps)
+  for (k in 1:LogitNorm_mix$G) {
+    mu <- LogitNorm_mix$parameters$mean[k]
+    sd <- sqrt(LogitNorm_mix$parameters$variance$sigmasq[k])
+    d <- d + LogitNorm_mix$parameters$pro[k] *
+      dnorm(logit(p), mean = mu, sd = sd) / (p * (1 - p))
+  }
+  d
+})
+
+# Combine into data frame
+density_data <- data.frame(
+  xg = rep(x_seq, 4),
+  density = c(gaussian_density, beta_density, gamma_density, logitnorm_density),
+  model = rep(c("Gaussian", "Beta", "Gamma", "Logit-Normal"), each = length(x_seq))
+)
+```
+
+Individual model plots:
+```{r}
+plot_mixture_ggplot <- function(data, density_df, model_name, color) {
+  ggplot() +
+    geom_histogram(data = data.frame(xg = data), 
+                   aes(x = xg, y = after_stat(density)),
+                   bins = 40, fill = "lightgray", color = "black", alpha = 0.7) +
+    geom_line(data = density_df, aes(x = xg, y = density),
+              color = color, size = 0.8) +
+    labs(title = paste(model_name, "Mixture Fit"),
+         x = "xG", y = "Density") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+}
+```
+
+Create individual plots:
+```{r}
+p_gaussian <- plot_mixture_ggplot(xg, 
+                                  density_data %>% filter(model == "Gaussian"),
+                                  "Gaussian", "red") + coord_cartesian(ylim = c(0, 11))
+
+p_beta <- plot_mixture_ggplot(xg,
+                              density_data %>% filter(model == "Beta"),
+                              "Beta", "blue") + coord_cartesian(ylim = c(0, 11))
+
+p_gamma <- plot_mixture_ggplot(xg,
+                               density_data %>% filter(model == "Gamma"),
+                               "Gamma", "darkgreen") + coord_cartesian(ylim = c(0, 11))
+
+p_logitnorm <- plot_mixture_ggplot(xg,
+                                   density_data %>% filter(model == "Logit-Normal"),
+                                   "Logit-Normal", "purple") + coord_cartesian(ylim = c(0, 11))
+
+# Display
+grid.arrange(p_gaussian, p_beta, p_gamma, p_logitnorm, ncol = 2)
+```
+
+
+Comparison plot:
+```{r}
+ggplot() +
+  geom_histogram(data = data.frame(xg = xg), 
+                 aes(x = xg, y = after_stat(density)),
+                 bins = 40, fill = "lightgray", color = "black", alpha = 0.5) +
+  geom_line(data = density_data, 
+            aes(x = xg, y = density, color = model, linetype = model),
+            size = 1.2) +
+  scale_color_manual(values = c("Gaussian" = "red", "Beta" = "blue", 
+                                 "Gamma" = "darkgreen", "Logit-Normal" = "purple")) +
+  scale_linetype_manual(values = c("Gaussian" = "dashed", "Beta" = "dashed",
+                                   "Gamma" = "dashed", "Logit-Normal" = "dashed")) +
+  labs(title = "Comparison: All Mixture Models",
+       x = "xG", y = "Density",
+       color = "Model", linetype = "Model") +
+  coord_cartesian(ylim = c(0, 11)) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        legend.position = "top")
+
+ggsave("Compare_mix_dens_ggplot.png", width = 12, height = 7)
+```
+
+Save individual plots:
+```{r}
+ggsave("Gaussian_mix_dens.png", plot = p_gaussian, width = 8, height = 5)
+ggsave("Beta_mix_dens.png", plot = p_beta, width = 8, height = 5)
+ggsave("Gamma_mix_dens.png", plot = p_gamma, width = 8, height = 5)
+ggsave("Logit_norm_mix.png", plot = p_logitnorm, width = 8, height = 5)
+```
+
+Summary:
+```{r}
+cat("\n=== SUMMARY ===\n")
+cat("Data range:", min(xg), "to", max(xg), "\n")
+cat("Mean xG:", mean(xg), "\n")
+cat("Median xG:", median(xg), "\n")
+cat("SD xG:", sd(xg), "\n\n")
+
+cat("Best model by BIC:", model_comparison$Model[which.min(model_comparison$BIC)], "\n")
+```
+
+
+
+
+
+
+
+
