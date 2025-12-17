@@ -166,16 +166,18 @@ plot_bar(data_to_mod[, c("is_goal", "skilled_foot", "is_CA")], by = "is_goal", n
 Bars plot on counter attacks:
 ```{r}
 data_to_mod %>%
-  select(is_goal, is_CA) %>%
-  pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
-  ggplot(aes(x = value, fill = factor(is_goal))) +
-  geom_bar(position = "dodge") +  # Side-by-side bars
-  facet_wrap(~variable, scales = "free_x", ncol = 2) +
+  ggplot(aes(x = factor(is_CA), fill = factor(is_goal))) +
+  geom_bar(position = "dodge") +
   scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
                     labels = c("No Goal", "Goal")) +
-  labs(fill = "Outcome", x = NULL, y = "Count") +
+  labs(fill = "Outcome", 
+       x = "Counter Attack", 
+       y = "Count",
+       title = "Goals vs Counter Attacks") +
   theme_bw() +
   theme(legend.position = "top")
+
+ggsave("counter_attack_goals.png", width = 10, height = 5)
 ```
 
 
@@ -312,6 +314,7 @@ ggsave("bars_plot_extra.png", width = 10, height = 5)
 plot_density(data_to_mod_extra, ncol = 3)
 ggsave("dens_plot_extra.png", width = 10, height = 5)
 ```
+
 
 
 
