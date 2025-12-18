@@ -1,0 +1,89 @@
+---
+title: "Calculations"
+output: html_document
+date: "2025-12-04"
+---
+
+Loading R packages:
+```{r}
+library(tidyverse)
+library(h2o)
+library(pROC)
+library(caret)
+library(ROCR)
+library(DALEX)
+library(pdp)
+library(ggsoccer)
+library(RColorBrewer)
+library(gridExtra)
+library(h2o)
+library(ingredients)
+```
+
+Loading data used to model:
+```{r}
+data_to_mod <- readRDS("data_to_mod.rds")
+```
+
+
+Setting testing dataset and features:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_to_mod)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed=2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X2 = setdiff(h2o.names(data_train), Y)
+X1 = c("distance_to_goal_line", "angle_to_goal")
+```
+
+Loading model with all features:
+```{r}
+modelname2 <- "GBM_2_AutoML_1_20251215_104212"
+cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
+```
+
+Results analysis GBM:
+```{r}
+pred_2 <- h2o.predict(cmod2, newdata = data_test)
+pred_r_2 <- as.data.frame(pred_2)
+```
+
+Mean Calculations:
+```{r}
+data_test_r <- as.data.frame(data_test)
+xx <- data_test_r %>% mutate(xG = pred_r_2$p1)
+
+mean(xx$xG[xx$is_CA == 0])
+mean(xx$xG[xx$is_CA == 1])
+mean(xx$xG)
+```
+
+## GLM analysis
+Loading model with all features:
+```{r}
+GLM_modelname2 <- "GLM_1_AutoML_1_20251215_104212"
+GLM_cmod2 <- h2o.loadModel(paste0("saved-models/", GLM_modelname2))
+```
+
+Results analysis GBM:
+```{r}
+GLM_pred_2 <- h2o.predict(GLM_cmod2, newdata = data_test)
+GLM_pred_r_2 <- as.data.frame(GLM_pred_2)
+```
+
+Mean Calculations:
+```{r}
+data_test_r <- as.data.frame(data_test)
+xx <- data_test_r %>% mutate(xG = GLM_pred_r_2$p1)
+
+mean(xx$xG[xx$is_CA == 0])
+mean(xx$xG[xx$is_CA == 1])
+mean(xx$xG)
+```
+
+
+
+
