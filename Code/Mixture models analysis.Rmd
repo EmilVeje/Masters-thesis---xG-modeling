@@ -42,7 +42,7 @@ X = setdiff(h2o.names(data_train), c(Y, "x1", "y1"))
 
 Load models with all features:
 ```{r}
-modelname2 <- "GBM_2_AutoML_7_20251215_152444" # change this name if you want to use another model saved by yourself
+modelname2 <- "" #write the model name here
 cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
 ```
 
@@ -130,7 +130,7 @@ logitnorm_summary <- data.frame(
   Model = "Logit-Normal",
   Component = 1:LogitNorm_mix$G,
   Weight = round(LogitNorm_mix$parameters$pro, 4),
-  Mean = round(LogitNorm_mix$parameters$mean, 4),
+  Mean = plogis(round(LogitNorm_mix$parameters$mean, 4)),
   Variance = round(LogitNorm_mix$parameters$variance$sigmasq, 6)
 )
 print(logitnorm_summary)
@@ -480,6 +480,7 @@ cat("SD xG:", sd(xg), "\n\n")
 
 cat("Best model by BIC:", model_comparison$Model[which.min(model_comparison$BIC)], "\n")
 ```
+
 
 
 
