@@ -4,7 +4,7 @@
 This repository contains the complete R code and analysis for our master thesis on Expected Goals (xG) modeling in football.
 The project analyzes unblocked shots from the top 5 European leagues (2017-2018 season) using machine learning approaches, particularly Gradient Boosting Machines (GBM) and Generalized Linear Models (GLM).
 
-## 📂 Repository Structure
+## Repository Structure
 ```
 ├── README.md                          
 ├── data/                              
@@ -32,7 +32,7 @@ The project analyzes unblocked shots from the top 5 European leagues (2017-2018 
 │   ├── Hypothesis test.Rmd        # Statistical tests
 │   └── Mixture models analysis.Rmd # Distribution fitting
 ```
-##Data:
+## Data:
 The data comes from the Wyscout dataset containing event-level data from:
 
 - English Premier League
