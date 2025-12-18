@@ -1,0 +1,542 @@
+---
+title: "Evaluate models big"
+output: html_document
+date: "2025-10-17"
+---
+
+Loading R packages:
+```{r}
+library(tidyverse)
+library(h2o)
+library(pROC)
+library(caret)
+library(ROCR)
+library(DALEX)
+library(pdp)
+library(ggsoccer)
+library(RColorBrewer)
+library(gridExtra)
+library(h2o)
+library(ingredients)
+```
+
+Loading data used to model:
+```{r}
+data_to_mod_extra <- readRDS("data_to_mod_extra.rds")
+
+data_to_mod_extra <- data_to_mod_extra %>%
+  mutate(position = factor(position, 
+                          levels = c("Goalkeeper", "Defender", "Midfielder", "Forward")))
+```
+
+Setting testing dataset and features:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_to_mod_extra)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed=2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X = setdiff(h2o.names(data_train), Y)
+```
+
+Loading model with all features:
+```{r}
+modelname2 <- "GBM_2_AutoML_7_20251215_152444"
+cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
+```
+
+Variable importance:
+```{r}
+vi2 <- h2o.varimp(cmod2)
+vi2
+h2o.varimp_plot(cmod2, num_of_features = length(X))
+```
+
+Model Performance:
+```{r}
+pred <- h2o.predict(cmod2, newdata = data_test)
+(perf <- h2o.performance(cmod2, newdata = data_test, valid=T))
+```
+
+Model Performance with another packages:
+```{r}
+data_test_r <- as.data.frame(data_test)
+pred_r <- as.data.frame(pred)
+
+roc <- roc(data_test_r$is_goal, pred_r$p1)
+plot.roc(roc, print.auc = TRUE, print.thres = "best")
+
+best_thres <- coords(roc, "best", ret = "threshold", transpose = T)
+h2o.confusionMatrix(cmod2, data_test, thresholds = best_thres, metrics = "mean_per_class_accuracy")
+
+pred_r$xG_bool <- ifelse(pred_r$p1 > best_thres, 1, 0)
+(result <- confusionMatrix(data = factor(pred_r$xG_bool), 
+                           reference = factor(data_test_r$is_goal), positive = "1", mode="prec_recall"))
+```
+
+
+Results analysis:
+```{r}
+pred_2 <- h2o.predict(cmod2, newdata = data_test)
+pred_r_2 <- as.data.frame(pred_2)
+```
+
+xG values distribution:
+```{r}
+ggplot(pred_r_2, aes(x=p1)) + 
+        geom_density() +
+        labs(x="xG") +
+        theme_bw() +
+        scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        scale_y_continuous(limits = c(0, 8), expand = c(0, 0))
+
+ggsave("density_xg_plot_extra.png", width = 10, height = 5)
+
+data_test_r <- as.data.frame(data_test)
+xx <- data_test_r %>% mutate(xG = pred_r_2$p1)
+
+ggplot(data = xx, aes(x= x1, y = y1)) + 
+        annotate_pitch(colour = "white",
+                       fill   = "black",
+                       limits = FALSE) +
+        theme_pitch() +
+        theme(plot.background = element_rect(fill = "black"),
+              title = element_text(colour = "white")) +
+        coord_flip(xlim = c(50, 100),
+                   ylim = c(0, 100)) +
+        geom_tile(aes(fill = xG)) +
+        scale_fill_gradientn(colours = rev(brewer.pal(7, "Spectral"))) +
+        theme(legend.position = c(0.76, 1), legend.direction = "horizontal",
+              legend.text = element_text(color = "white", size = 8, face = "plain"),
+              legend.background = element_rect(fill = "black"),
+              legend.key = element_rect(fill = "black", color = "black"),
+              plot.title = element_text(hjust = 0.07, face = "plain"),
+              plot.subtitle = element_text(hjust = 0.07, size = 10, face = "italic"),
+              plot.caption = element_text(hjust = 0.95),
+              plot.margin = margin(1, 0.2, 0.5, 0.2, "cm")) +
+        labs(fill = "xG value")
+
+
+ggsave("xG_plot2_extra.png", width = 10*1.3, height = 5*1.6)
+```
+
+ROC curve:
+```{r}
+preds_list <- list(pred_r_2$p1)
+
+nm <- length(preds_list)
+goal <- as.data.frame(as.numeric(as.character(data_test$is_goal)))
+actuals_list <- rep(goal, nm)
+
+pred <- prediction(preds_list, actuals_list)
+rocs <- performance(pred, "tpr", "fpr")
+
+png(filename = "AUC_plot_extra.png", width = 8, height = 5, units = "in", res = 300)
+plot(rocs, col = as.list(1:nm), main = "Testing dataset ROC Curve")
+legend(x = "bottomright", 
+       legend = c("GBM2"),
+       fill = 1:nm)
+dev.off()
+```
+
+Partial dependency plots:
+```{r}
+custom_predict <- function(model, newdata) {
+        newdata_h2o <- as.h2o(newdata)
+        res <- as.data.frame(h2o.predict(model, newdata_h2o))
+        return(as.numeric(as.character(res$predict)))
+}
+data_test_df <- as.data.frame(data_test)
+data_test_df <- data_test_df %>%
+  mutate(position = factor(position, 
+                          levels = c("Goalkeeper", "Defender", "Midfielder", "Forward")))
+
+explainer_gbm_2 <- DALEX::explain(
+  model = cmod2, 
+  data = data_test_df[, X],
+  y = as.numeric(as.character(data_test_df[, Y])),
+  predict_function = custom_predict,
+  label = "GBM"
+)
+mp_gbm_2 <- model_performance(explainer_gbm_2)
+```
+Partial dependency distance to goal:
+```{r}
+pdp_gbm_2 <- partial_dependency(explainer_gbm_2, variables = "distance_to_goal_line")
+```
+Plot with GG plot:
+```{r}
+# Create custom plot - using _x_ as variable name
+ggplot() +
+  geom_smooth(data = pdp_gbm_2, aes(x = `_x_`, y = `_yhat_`, color = "GBM2"), 
+              se = FALSE, method = "loess", size = 1) +
+  scale_x_continuous(breaks = seq(0, 30, by = 5), limits = c(0, 30)) +
+  scale_y_continuous(limits = c(0, 1))+  # Added y-axis limits
+  labs(x = "Distance to Goal Line (m)", 
+       y = "Average Prediction",
+       color = "Model") +
+  theme_bw()
+
+ggsave("Partial_distance_extra.png", width = 8, height = 5)
+```
+Rate of decline:
+```{r}
+# Calculate the rate of change (derivative) for each model
+calculate_rate <- function(pdp_data) {
+  pdp_data %>%
+    arrange(`_x_`) %>%
+    mutate(
+      xG_change = c(NA, diff(`_yhat_`)),
+      distance_change = c(NA, diff(`_x_`)),
+      rate_of_decline = xG_change / distance_change
+    )
+}
+
+gbm2_rate <- calculate_rate(pdp_gbm_2) %>% mutate(model = "GBM")
+```
+
+Plot:
+```{r}
+# Plot the rate of decline
+ggplot(gbm2_rate, aes(x = `_x_`, y = rate_of_decline, color = model)) +
+  geom_smooth(se = FALSE, method = "loess", size = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  scale_x_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) +
+  scale_color_manual(values = c("GBM" = "#00BFC4")) +
+  labs(
+    x = "Distance to Goal Line (m)",
+    y = "Rate of xG Decline (per meter)",
+    color = "Model",
+    title = "How quickly does xG decrease with distance?",
+    subtitle = "Negative values = xG declining, steeper = faster decline"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    plot.subtitle = element_text(size = 10, color = "gray30")
+  )
+
+ggsave("xG_decline_rate_big.png", width = 10, height = 6)
+```
+
+
+Summary:
+```{r}
+# Optional: Summary statistics
+summary_stats <- gbm2_rate %>%
+  filter(`_x_` <= 40, !is.na(rate_of_decline)) %>%
+  group_by(model) %>%
+  summarise(
+    avg_decline_rate = mean(rate_of_decline, na.rm = TRUE),
+    steepest_decline = min(rate_of_decline, na.rm = TRUE),
+    distance_at_steepest = `_x_`[which.min(rate_of_decline)]
+  )
+
+print(summary_stats)
+```
+
+
+Partial dependency angle to goal:
+```{r}
+pdp_gbm_2_angle <- partial_dependency(explainer_gbm_2, variables = "angle_to_goal")
+```
+
+Plot with GGplot:
+```{r}
+ggplot() +
+  geom_smooth(data = pdp_gbm_2_angle, aes(x = `_x_`, y = `_yhat_`, color = "GBM"), 
+              se = FALSE, method = "loess", size = 1) +
+  scale_x_continuous(breaks = seq(0, 90, by = 5), limits = c(0, 90)) +
+  scale_y_continuous(limits = c(0, 1))+  # Customize breaks here
+  labs(x = "Angle to Goal (degrees)", 
+       y = "Average Prediction",
+       color = "Model") +
+  theme_bw()
+
+ggsave("Partial_angle_extra.png", width = 8, height = 5)
+```
+
+
+
+Partial dependency skilled foot:
+```{r}
+pdp_gbm_2_foot <- partial_dependency(explainer_gbm_2, variables = "skilled_foot")
+plot(pdp_gbm_2_foot)
+```
+
+```{r}
+png(filename = "Partial_foot_extra.png", width = 8, height = 5, units = "in", res = 300)
+plot(pdp_gbm_2_foot)
+dev.off()
+```
+
+Rebound:
+```{r}
+pdp_rebound <- partial_dependency(explainer_gbm_2, variables = "Is_Rebound")
+ggplot(pdp_rebound, aes(x = factor(`_x_`, labels = c("No", "Yes")), y = `_yhat_`)) +
+  geom_col(fill = "steelblue") +
+  labs(x = "Is_Rebound", y = "Average Prediction",
+       title = "Partial Dependence profile",
+       subtitle = "Created for the GBM model") +
+  theme_bw()
+ggsave("Partial_rebound_extra.png", width = 10, height = 5)
+```
+
+Position:
+```{r}
+pdp_position <- partial_dependency(explainer_gbm_2, variables = "position")
+
+# Combine Goalkeeper and Defender
+pdp_position_combined <- pdp_position %>%
+  mutate(position_combined = case_when(
+    `_vname_` == "position" & `_x_` %in% c("Goalkeeper", "Defender") ~ "Goalkeeper/Defender",
+    TRUE ~ as.character(`_x_`)
+  )) %>%
+  group_by(`_vname_`, position_combined, `_label_`) %>%
+  summarise(`_yhat_` = mean(`_yhat_`), .groups = "drop") %>%
+  rename(`_x_` = position_combined) %>%
+  mutate(`_x_` = factor(`_x_`, levels = c("Goalkeeper/Defender", "Midfielder", "Forward")))
+
+# Plot the combined data
+ggplot(pdp_position_combined, aes(x = `_x_`, y = `_yhat_`)) +
+  geom_col(fill = "steelblue") +
+  labs(x = "Position", y = "Average Prediction", 
+       title = "Partial Dependence profile",
+       subtitle = "Created for the GBM model") +
+  theme_bw()
+
+ggsave("pdp_position_combined.png", width = 8, height = 5)
+```
+
+## GLM analysis
+Loading GLM model with all features:
+```{r}
+GLM_modelname2 <- "GLM_1_AutoML_1_20251218_95643"
+GLM_cmod2 <- h2o.loadModel(paste0("saved-models/", GLM_modelname2))
+```
+
+GLM Variable importance:
+```{r}
+GLM_vi2 <- h2o.varimp(GLM_cmod2)
+GLM_vi2
+h2o.varimp_plot(GLM_cmod2, num_of_features = 13)
+```
+GLM Model Performance:
+```{r}
+set.seed(2025)
+GLM_pred <- h2o.predict(GLM_cmod2, newdata = data_test)
+(GLM_perf <- h2o.performance(GLM_cmod2, newdata = data_test, valid=T))
+```
+
+
+GLM Model Performance with another packages:
+```{r}
+GLM_data_test_r <- as.data.frame(data_test)
+GLM_pred_r <- as.data.frame(GLM_pred)
+
+GLM_roc <- roc(GLM_data_test_r$is_goal, GLM_pred_r$p1)
+plot.roc(GLM_roc, print.auc = TRUE, print.thres = "best")
+
+GLM_best_thres <- coords(GLM_roc, "best", ret = "threshold", transpose = T)
+h2o.confusionMatrix(GLM_cmod2, data_test, thresholds = GLM_best_thres, metrics = "mean_per_class_accuracy")
+
+GLM_pred_r$xG_bool <- ifelse(GLM_pred_r$p1 > GLM_best_thres, 1, 0)
+(GLM_result <- confusionMatrix(data = factor(GLM_pred_r$xG_bool), 
+                           reference = factor(GLM_data_test_r$is_goal), positive = "1", mode="prec_recall"))
+```
+
+
+GLM Results analysis:
+```{r}
+set.seed(2025)
+GLM_pred_2 <- h2o.predict(GLM_cmod2, newdata = data_test)
+GLM_pred_r_2 <- as.data.frame(GLM_pred_2)
+```
+
+xG values distribution:
+```{r}
+ggplot(GLM_pred_r_2, aes(x=p1)) + 
+        geom_density() +
+        labs(x="xG") +
+        theme_bw() +
+        scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        scale_y_continuous(limits = c(0, 8), expand = c(0, 0))
+
+ggsave("GLM_density_xg_plot_extra.png", width = 10, height = 5)
+
+GLM_data_test_r <- as.data.frame(data_test)
+GLM_xx <- GLM_data_test_r %>% mutate(xG = GLM_pred_r_2$p1)
+
+ggplot(data = GLM_xx, aes(x= x1, y = y1)) + 
+        annotate_pitch(colour = "white",
+                       fill   = "black",
+                       limits = FALSE) +
+        theme_pitch() +
+        theme(plot.background = element_rect(fill = "black"),
+              title = element_text(colour = "white")) +
+        coord_flip(xlim = c(50, 100),
+                   ylim = c(0, 100)) +
+        geom_tile(aes(fill = xG)) +
+        scale_fill_gradientn(colours = rev(brewer.pal(7, "Spectral"))) +
+        theme(legend.position = c(0.76, 1), legend.direction = "horizontal",
+              legend.text = element_text(color = "white", size = 8, face = "plain"),
+              legend.background = element_rect(fill = "black"),
+              legend.key = element_rect(fill = "black", color = "black"),
+              plot.title = element_text(hjust = 0.07, face = "plain"),
+              plot.subtitle = element_text(hjust = 0.07, size = 10, face = "italic"),
+              plot.caption = element_text(hjust = 0.95),
+              plot.margin = margin(1, 0.2, 0.5, 0.2, "cm")) +
+        labs(fill = "xG value")
+
+
+ggsave("GLM_xG_plot2_extra.png", width = 10*1.3, height = 5*1.6)
+```
+
+GLM ROC curve:
+```{r}
+set.seed(2025)
+GLM_preds_list <- list(GLM_pred_r_2$p1)
+
+nm <- length(GLM_preds_list)
+goal <- as.data.frame(as.numeric(as.character(data_test$is_goal)))
+actuals_list <- rep(goal, nm)
+
+GLM_pred <- prediction(GLM_preds_list, actuals_list)
+GLM_rocs <- performance(GLM_pred, "tpr", "fpr")
+
+png(filename = "GLM_AUC_plot_extra.png", width = 8, height = 5, units = "in", res = 300)
+plot(GLM_rocs, col = as.list(1:nm), main = "Testing dataset ROC Curves")
+legend(x = "bottomright", 
+       legend = c("GLM all"),
+       fill = 1:nm)
+dev.off()
+```
+
+
+Partial dependency plots:
+```{r}
+set.seed(2025)
+custom_predict <- function(model, newdata) {
+        newdata_h2o <- as.h2o(newdata)
+        res <- as.data.frame(h2o.predict(model, newdata_h2o))
+        return(as.numeric(as.character(res$predict)))
+}
+
+explainer_glm_2 <- DALEX::explain(model = GLM_cmod2, 
+                                    data = as.data.frame(data_test)[, X],
+                                    y = as.numeric(as.character(as.data.frame(data_test)[, Y])),
+                                    predict_function = custom_predict,
+                                    label = "GLM all")
+mp_glm_2 <- model_performance(explainer_glm_2)
+```
+
+Same approach for GLM models:
+
+```{r}
+pdp_glm_2 <- partial_dependency(explainer_glm_2, variables = "distance_to_goal_line")
+
+ggplot() +
+  geom_smooth(data = pdp_glm_2, aes(x = `_x_`, y = `_yhat_`, color = "GLM all"), 
+              se = FALSE, method = "loess", size = 1) +
+  scale_x_continuous(breaks = seq(0, 30, by = 5), limits = c(0, 30)) +
+  scale_y_continuous(limits = c(0, 1))+
+  labs(x = "Distance to Goal Line (m)", 
+       y = "Average Prediction",
+       color = "Model") +
+  theme_bw()
+
+ggsave("GLM_Partial_distance_extra.png", width = 8, height = 5)
+```
+
+Rate of decline
+```{r}
+set.seed(2025)
+# Calculate the rate of change (derivative) for each model
+calculate_rate <- function(pdp_data) {
+  pdp_data %>%
+    arrange(`_x_`) %>%
+    mutate(
+      xG_change = c(NA, diff(`_yhat_`)),
+      distance_change = c(NA, diff(`_x_`)),
+      rate_of_decline = xG_change / distance_change
+    )
+}
+glm2_rate <- calculate_rate(pdp_glm_2) %>% mutate(model = "GLM all")
+```
+
+Plot:
+```{r}
+# Plot the rate of decline
+ggplot(glm2_rate, aes(x = `_x_`, y = rate_of_decline, color = model)) +
+  geom_smooth(se = FALSE, method = "loess", size = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  scale_x_continuous(breaks = seq(0, 30, by = 5), limits = c(0, 30)) +
+  scale_color_manual(values = c("GLM all" = "#00BFC4")) +
+  labs(
+    x = "Distance to Goal Line (m)",
+    y = "Rate of xG Decline (per meter)",
+    color = "Model",
+    title = "How quickly does xG decrease with distance?",
+    subtitle = "Negative values = xG declining, steeper = faster decline"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    plot.subtitle = element_text(size = 10, color = "gray30")
+  )
+ggsave("xG_decline_rate_GLM_extra.png", width = 10, height = 6)
+
+```
+
+Summary:
+```{r}
+set.seed(2025)
+# Optional: Summary statistics
+summary_stats <- glm2_rate %>%
+  filter(`_x_` <= 40, !is.na(rate_of_decline)) %>%
+  group_by(model) %>%
+  summarise(
+    avg_decline_rate = mean(rate_of_decline, na.rm = TRUE),
+    steepest_decline = min(rate_of_decline, na.rm = TRUE),
+    distance_at_steepest = `_x_`[which.min(rate_of_decline)]
+  )
+
+print(summary_stats)
+```
+
+```{r}
+set.seed(2025)
+pdp_glm_2_angle <- partial_dependency(explainer_glm_2, variables = "angle_to_goal")
+
+ggplot() +
+  geom_smooth(data = pdp_glm_2_angle, aes(x = `_x_`, y = `_yhat_`, color = "GLM all"), 
+              se = FALSE, method = "loess", size = 1) +
+  scale_x_continuous(breaks = seq(0, 90, by = 5), limits = c(0, 90)) +
+  scale_y_continuous(limits = c(0, 1))+  # Customize breaks here
+  labs(x = "Angle to Goal (degrees)", 
+       y = "Average Prediction",
+       color = "Model") +
+  theme_bw()
+
+ggsave("GLM_Partial_angle_extra.png", width = 8, height = 5)
+```
+
+```{r}
+set.seed(2025)
+pdp_glm_2_foot <- partial_dependency(explainer_glm_2, variables = "skilled_foot")
+plot(pdp_glm_2_foot)
+```
+
+
+```{r}
+png(filename = "GLM_Partial_foot_extra.png", width = 8, height = 5, units = "in", res = 300)
+plot(pdp_glm_2_foot)
+dev.off()
+```
+
+
+
+
+

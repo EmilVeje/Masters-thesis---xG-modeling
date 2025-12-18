@@ -1,0 +1,72 @@
+---
+title: "Fit models big"
+output: html_document
+date: "2025-10-17"
+---
+
+Loading R packages:
+```{r}
+library(tidyverse)
+library(h2o)
+```
+
+Loading data to model:
+```{r}
+data_to_mod_extra <- readRDS("data_to_mod_extra.rds")
+```
+
+Fitting the model with all features:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o <- as.h2o(data_to_mod_extra)
+data_split = h2o.splitFrame(data = data_h2o, ratios = 0.8, seed=2025)
+data_train = data_split[[1]]
+data_test = data_split[[2]]
+
+Y = "is_goal"
+X = setdiff(h2o.names(data_train), c(Y, "x1", "y1"))
+```
+
+Auto Machine Learning:
+```{r}
+(mod_h2o <- h2o.automl(x=X, y=Y, training_frame = data_train, max_models = 10, seed = 2025))
+```
+
+Getting the best model:
+```{r}
+lb <- mod_h2o@leaderboard
+print(lb, n = nrow(lb))
+lbdf <- as.data.frame(lb)
+```
+
+Choosing GBM-model:
+```{r}
+modelname <- "GBM_2_AutoML_7_20251215_152444" # write the chosen model name from the "lbdf" dataframe
+cmod <- grep(modelname, lbdf$model_id, value=T)
+cmod <- h2o.getModel(cmod)
+summary(cmod)
+```
+
+
+Save the model:
+```{r}
+h2o.saveModel(object = cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+```
+
+Choosing GLM-model:
+```{r}
+set.seed(2025)
+GLM_modelname <- "GLM_1_AutoML_1_20251218_95643" # write the chosen model name from the "lbdf" dataframe
+GLM_cmod <- grep(GLM_modelname, lbdf$model_id, value=T)
+GLM_cmod <- h2o.getModel(GLM_cmod)
+summary(GLM_cmod)
+```
+
+Save GLM model:
+```{r}
+set.seed(2025)
+h2o.saveModel(object = GLM_cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
+h2o.shutdown(prompt=FALSE)
+```
+
+
