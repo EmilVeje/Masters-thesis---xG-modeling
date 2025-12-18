@@ -1,7 +1,7 @@
 # Expected Goals (xG) Modeling - Master Thesis
 
 ## Overview
-This repository contains the complete R code and analysis for our master thesis on Expected Goals (xG) modeling in football.
+This repository contains the complete R code and analysis for our master thesis on Expected Goals (xG) modeling in football.  
 The project analyzes unblocked shots from the top 5 European leagues (2017-2018 season) using machine learning approaches, particularly Gradient Boosting Machines (GBM) and Generalized Linear Models (GLM).
 
 ## Repository Structure
@@ -42,14 +42,14 @@ The data comes from the Wyscout dataset containing event-level data from:
 - Spanish La Liga
 - Aswell as player data.
 
-The data stem from JSON files, and can be found in the data folder.
+The data stem from JSON files, and can be found in the data folder.  
 ## Prerequisites
 
 Note, the H2O package requires Java. To install:
-Run 'system("java -version")' in the console to check whether it is installed correctly or not.
-If not: install from https://www.oracle.com/java/technologies/downloads/
-Additionally you may need to set where Java lies in the system.
-This is done as follows:
+Run 'system("java -version")' in the console to check whether it is installed correctly or not.  
+If not: install from https://www.oracle.com/java/technologies/downloads/  
+Additionally you may need to set where Java lies in the system.  
+This is done as follows:  
 1. Find the Java installation path
 2. Open Environmental Variables
 3. Under System Variables add:
@@ -58,38 +58,38 @@ This is done as follows:
 4. Add %JAVA_HOME%\bin to Path if not already there.
 
 ### Required R Packages
-**Data manipulation and visualization**
-library(tidyverse)
-library(jsonlite)
-library(dplyr)
+**Data manipulation and visualization**  
+library(tidyverse)  
+library(jsonlite)  
+library(dplyr)  
 
-**Visualization**
-library(ggplot2)
-library(ggsoccer)
-library(RColorBrewer)
-library(gridExtra)
-library(ggpubr)
-library(DataExplorer)
+**Visualization**  
+library(ggplot2)  
+library(ggsoccer)  
+library(RColorBrewer)  
+library(gridExtra)  
+library(ggpubr)  
+library(DataExplorer)  
 
-**Machine learning**
-library(h2o)
-library(caret)
+**Machine learning**  
+library(h2o)  
+library(caret)  
 
-**Model evaluation**
-library(pROC)
-library(ROCR)
-library(DALEX)
-library(pdp)
-library(ingredients)
+**Model evaluation**  
+library(pROC)  
+library(ROCR)  
+library(DALEX)  
+library(pdp)  
+library(ingredients)  
 
-**Mixture models**
-library(mclust)
-library(gamlss)
-library(gamlss.mx)
-library(mixtools)
-library(mixR)
-library(flexmix)
-library(betareg)
+**Mixture models**  
+library(mclust)  
+library(gamlss)  
+library(gamlss.mx)  
+library(mixtools)  
+library(mixR)  
+library(flexmix)  
+library(betareg)  
 
 ## Workflow
 
