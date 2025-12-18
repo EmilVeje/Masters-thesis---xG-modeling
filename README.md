@@ -58,7 +58,7 @@ This is done as follows:
 4. Add %JAVA_HOME%\bin to Path if not already there.
 
 ### Required R Packages
-** Data manipulation and visualization
+**Data manipulation and visualization
 library(tidyverse)
 library(jsonlite)
 library(dplyr)
