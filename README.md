@@ -2,7 +2,7 @@
 
 ## Overview
 This repository contains the complete R code and analysis for our master thesis on Expected Goals (xG) modeling in football.  
-The code is inspired by the work of Ismael Gómez Schmidt and utlizes the work in https://www.datofutbol.cl/blog/xg-model/#data as a starting point.  
+The code is inspired by the work of Ismael Gómez Schmidt and utlizes the work in https://www.datofutbol.cl/blog/xg-model as a starting point.  
 The project analyzes unblocked shots from the top 5 European leagues (2017-2018 season) using machine learning approaches, particularly Gradient Boosting Machines (GBM) and Generalized Linear Models (GLM).
 
 ## Repository Structure
