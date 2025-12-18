@@ -58,12 +58,12 @@ This is done as follows:
 4. Add %JAVA_HOME%\bin to Path if not already there.
 
 ### Required R Packages
-** Data manipulation and visualization **
+**Data manipulation and visualization**
 library(tidyverse)
 library(jsonlite)
 library(dplyr)
 
-** Visualization **
+**Visualization**
 library(ggplot2)
 library(ggsoccer)
 library(RColorBrewer)
@@ -71,18 +71,18 @@ library(gridExtra)
 library(ggpubr)
 library(DataExplorer)
 
-** Machine learning **
+**Machine learning**
 library(h2o)
 library(caret)
 
-** Model evaluation **
+**Model evaluation**
 library(pROC)
 library(ROCR)
 library(DALEX)
 library(pdp)
 library(ingredients)
 
-** Mixture models **
+**Mixture models**
 library(mclust)
 library(gamlss)
 library(gamlss.mx)
