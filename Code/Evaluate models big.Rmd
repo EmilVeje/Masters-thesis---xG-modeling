@@ -43,7 +43,7 @@ X = setdiff(h2o.names(data_train), Y)
 
 Loading model with all features:
 ```{r}
-modelname2 <- "GBM_2_AutoML_7_20251215_152444"
+modelname2 <- "" #Insert model name here
 cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
 ```
 
@@ -168,7 +168,6 @@ pdp_gbm_2 <- partial_dependency(explainer_gbm_2, variables = "distance_to_goal_l
 ```
 Plot with GG plot:
 ```{r}
-# Create custom plot - using _x_ as variable name
 ggplot() +
   geom_smooth(data = pdp_gbm_2, aes(x = `_x_`, y = `_yhat_`, color = "GBM2"), 
               se = FALSE, method = "loess", size = 1) +
@@ -197,9 +196,8 @@ calculate_rate <- function(pdp_data) {
 gbm2_rate <- calculate_rate(pdp_gbm_2) %>% mutate(model = "GBM")
 ```
 
-Plot:
+Plot the rate of decline:
 ```{r}
-# Plot the rate of decline
 ggplot(gbm2_rate, aes(x = `_x_`, y = rate_of_decline, color = model)) +
   geom_smooth(se = FALSE, method = "loess", size = 1.2) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
@@ -224,7 +222,6 @@ ggsave("xG_decline_rate_big.png", width = 10, height = 6)
 
 Summary:
 ```{r}
-# Optional: Summary statistics
 summary_stats <- gbm2_rate %>%
   filter(`_x_` <= 40, !is.na(rate_of_decline)) %>%
   group_by(model) %>%
@@ -313,7 +310,7 @@ ggsave("pdp_position_combined.png", width = 8, height = 5)
 ## GLM analysis
 Loading GLM model with all features:
 ```{r}
-GLM_modelname2 <- "GLM_1_AutoML_1_20251218_95643"
+GLM_modelname2 <- "" #Insert model name here
 GLM_cmod2 <- h2o.loadModel(paste0("saved-models/", GLM_modelname2))
 ```
 
@@ -466,9 +463,8 @@ calculate_rate <- function(pdp_data) {
 glm2_rate <- calculate_rate(pdp_glm_2) %>% mutate(model = "GLM all")
 ```
 
-Plot:
+Plot the rate of decline:
 ```{r}
-# Plot the rate of decline
 ggplot(glm2_rate, aes(x = `_x_`, y = rate_of_decline, color = model)) +
   geom_smooth(se = FALSE, method = "loess", size = 1.2) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
@@ -493,7 +489,6 @@ ggsave("xG_decline_rate_GLM_extra.png", width = 10, height = 6)
 Summary:
 ```{r}
 set.seed(2025)
-# Optional: Summary statistics
 summary_stats <- glm2_rate %>%
   filter(`_x_` <= 40, !is.na(rate_of_decline)) %>%
   group_by(model) %>%
@@ -535,6 +530,7 @@ png(filename = "GLM_Partial_foot_extra.png", width = 8, height = 5, units = "in"
 plot(pdp_glm_2_foot)
 dev.off()
 ```
+
 
 
 
