@@ -31,6 +31,7 @@ The project analyzes unblocked shots from the top 5 European leagues (2017-2018 
 │   ├── Evaluate left footed models.Rmd
 │   ├── Calculations.Rmd           # xG calculations by counter-attack
 │   ├── Hypothesis test.Rmd        # Statistical tests
+│   └── Comparison left right.Rmd  # Direct comparison of foot-specific models
 │   └── Mixture models analysis.Rmd # Distribution fitting
 ```
 ## Data:
@@ -126,12 +127,13 @@ After Step 1 is complete, you can run any of these **fit + evaluate** pairs inde
 
 ---
 
-### Step 3: Additional Analyses (Optional)
+### Step 3: Additional Analyses
 
 These can be run after their respective models are fitted:
 
 - `Calculations.Rmd` - Calculate mean xG by counter-attack status (requires models from `Fit_models.Rmd`)
 - `Hypothesis test.Rmd` - Statistical hypothesis tests comparing foot models (requires models from `Left` & `Right`-footed models)
+- `Comparison left right.Rmd` - **Direct comparison of left vs. right-footed models** with comparative ROC curves and partial dependency plots (requires models from `Left` & `Right`-footed models)
 - `Mixture models analysis.Rmd` - Fit mixture models to xG distribution (requires models from `Fit_models_big.Rmd`)
 
 ---
