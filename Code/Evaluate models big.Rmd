@@ -172,7 +172,7 @@ ggplot() +
   geom_smooth(data = pdp_gbm_2, aes(x = `_x_`, y = `_yhat_`, color = "GBM2"), 
               se = FALSE, method = "loess", size = 1) +
   scale_x_continuous(breaks = seq(0, 30, by = 5), limits = c(0, 30)) +
-  scale_y_continuous(limits = c(0, 1))+  # Added y-axis limits
+  scale_y_continuous(limits = c(0, 1))+
   labs(x = "Distance to Goal Line (m)", 
        y = "Average Prediction",
        color = "Model") +
@@ -246,7 +246,7 @@ ggplot() +
   geom_smooth(data = pdp_gbm_2_angle, aes(x = `_x_`, y = `_yhat_`, color = "GBM"), 
               se = FALSE, method = "loess", size = 1) +
   scale_x_continuous(breaks = seq(0, 90, by = 5), limits = c(0, 90)) +
-  scale_y_continuous(limits = c(0, 1))+  # Customize breaks here
+  scale_y_continuous(limits = c(0, 1))+ 
   labs(x = "Angle to Goal (degrees)", 
        y = "Average Prediction",
        color = "Model") +
@@ -509,8 +509,8 @@ ggplot() +
   geom_smooth(data = pdp_glm_2_angle, aes(x = `_x_`, y = `_yhat_`, color = "GLM all"), 
               se = FALSE, method = "loess", size = 1) +
   scale_x_continuous(breaks = seq(0, 90, by = 5), limits = c(0, 90)) +
-  scale_y_continuous(limits = c(0, 1))+  # Customize breaks here
-  labs(x = "Angle to Goal (degrees)", 
+  scale_y_continuous(limits = c(0, 1))+
+  labs(x = "Angle to Goal (degrees)",
        y = "Average Prediction",
        color = "Model") +
   theme_bw()
@@ -530,6 +530,7 @@ png(filename = "GLM_Partial_foot_extra.png", width = 8, height = 5, units = "in"
 plot(pdp_glm_2_foot)
 dev.off()
 ```
+
 
 
 
