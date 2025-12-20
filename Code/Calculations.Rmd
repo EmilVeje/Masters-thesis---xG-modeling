@@ -41,7 +41,7 @@ X1 = c("distance_to_goal_line", "angle_to_goal")
 
 Loading model with all features:
 ```{r}
-modelname2 <- "GBM_2_AutoML_1_20251215_104212"
+modelname2 <- "" # Insert model name her
 cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
 ```
 
@@ -83,6 +83,7 @@ mean(xx$xG[xx$is_CA == 0])
 mean(xx$xG[xx$is_CA == 1])
 mean(xx$xG)
 ```
+
 
 
 
