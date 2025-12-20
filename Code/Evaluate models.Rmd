@@ -40,7 +40,7 @@ X1 = c("distance_to_goal_line", "angle_to_goal")
 
 Loading model with all features:
 ```{r}
-modelname2 <- "GBM_2_AutoML_1_20251215_104212"
+modelname2 <- "" #Insert model name here
 cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
 ```
 
@@ -76,7 +76,7 @@ pred_r$xG_bool <- ifelse(pred_r$p1 > best_thres, 1, 0)
 
 Loading GLM model with all features:
 ```{r}
-GLM_modelname2 <- "GLM_1_AutoML_1_20251215_104212" # change this name if you want to use another model saved by yourself
+GLM_modelname2 <- "" #Insert model name here
 GLM_cmod2 <- h2o.loadModel(paste0("saved-models/", GLM_modelname2))
 ```
 
@@ -114,7 +114,7 @@ GLM_pred_r$xG_bool <- ifelse(GLM_pred_r$p1 > GLM_best_thres, 1, 0)
 
 Loading model with 2 features:
 ```{r}
-modelname1 <- "GBM_2_AutoML_1_20251215_104930" # change this name if you want to use another model saved by yourself
+modelname1 <- "" #Insert model name here
 cmod1 <- h2o.loadModel(paste0("saved-models/", modelname1))
 ```
 
@@ -150,7 +150,7 @@ pred_r$xG_bool <- ifelse(pred_r$p1 > best_thres, 1, 0)
 
 Loading GLM model with only 2 features:
 ```{r}
-GLM_modelname1 <- "GLM_1_AutoML_1_20251215_104930" # change this name if you want to use another model saved by yourself
+GLM_modelname1 <- "" #Insert model name here
 GLM_cmod1 <- h2o.loadModel(paste0("saved-models/", GLM_modelname1))
 ```
 
@@ -285,7 +285,6 @@ pdp_gbm_2 <- partial_dependency(explainer_gbm_2, variables = "distance_to_goal_l
 Plot with GG plot:
 ```{r}
 set.seed(2025)
-# Create custom plot - using _x_ as variable name
 ggplot() +
   geom_smooth(data = pdp_gbm_1, aes(x = `_x_`, y = `_yhat_`, color = "GBM 2"), 
               se = FALSE, method = "loess", size = 1) +
@@ -323,10 +322,9 @@ gbm2_rate <- calculate_rate(pdp_gbm_2) %>% mutate(model = "GBM all")
 combined_rates <- bind_rows(gbm1_rate, gbm2_rate)
 ```
 
-Plot:
+Plot the rate of decline:
 ```{r}
 set.seed(2025)
-# Plot the rate of decline
 ggplot(combined_rates, aes(x = `_x_`, y = rate_of_decline, color = model)) +
   geom_smooth(se = FALSE, method = "loess", size = 1.2) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
@@ -351,7 +349,6 @@ ggsave("xG_decline_rate.png", width = 10, height = 6)
 Summary:
 ```{r}
 set.seed(2025)
-# Optional: Summary statistics
 summary_stats <- combined_rates %>%
   filter(`_x_` <= 40, !is.na(rate_of_decline)) %>%
   group_by(model) %>%
@@ -368,7 +365,6 @@ print(summary_stats)
 Plot angle to goal with GGplot:
 ```{r}
 set.seed(2025)
-# Angle partial dependency with custom x-axis
 pdp_gbm_1_angle <- partial_dependency(explainer_gbm_1, variables = "angle_to_goal")
 pdp_gbm_2_angle <- partial_dependency(explainer_gbm_2, variables = "angle_to_goal")
 
@@ -528,9 +524,8 @@ glm2_rate <- calculate_rate(pdp_glm_2) %>% mutate(model = "GLM all")
 combined_rates <- bind_rows(glm1_rate, glm2_rate)
 ```
 
-Plot:
+Plot the rate of decline:
 ```{r}
-# Plot the rate of decline
 ggplot(combined_rates, aes(x = `_x_`, y = rate_of_decline, color = model)) +
   geom_smooth(se = FALSE, method = "loess", size = 1.2) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
@@ -556,7 +551,6 @@ ggsave("xG_decline_rate_GLM.png", width = 10, height = 6)
 Summary:
 ```{r}
 set.seed(2025)
-# Optional: Summary statistics
 summary_stats <- combined_rates %>%
   filter(`_x_` <= 40, !is.na(rate_of_decline)) %>%
   group_by(model) %>%
@@ -605,6 +599,7 @@ png(filename = "GLM_Partial_foot.png", width = 8, height = 5, units = "in", res 
 plot(pdp_glm_2_foot)
 dev.off()
 ```
+
 
 
 
