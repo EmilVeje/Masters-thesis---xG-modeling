@@ -1,0 +1,334 @@
+---
+title: "Comparison left and right"
+output: html_document
+date: "2025-12-20"
+---
+
+
+Loading R packages:
+```{r}
+library(tidyverse)
+library(h2o)
+library(pROC)
+library(caret)
+library(ROCR)
+library(DALEX)
+library(pdp)
+library(ggsoccer)
+library(RColorBrewer)
+library(gridExtra)
+library(h2o)
+library(ingredients)
+```
+
+Loading left-footed data used to model:
+```{r}
+data_left <- readRDS("data_left.rds")
+data_left <- data_left %>%
+  mutate(position = case_when(
+    position %in% c("Goalkeeper", "Defender") ~ "Defender",
+    TRUE ~ as.character(position)
+  ),
+  position = factor(position, levels = c("Defender", "Midfielder", "Forward")))
+```
+
+Loading right-footed data used to model:
+```{r}
+data_right <- readRDS("data_right.rds")
+data_right <- data_right %>%
+  mutate(position = case_when(
+    position %in% c("Goalkeeper", "Defender") ~ "Defender",
+    TRUE ~ as.character(position)
+  ),
+  position = factor(position, levels = c("Defender", "Midfielder", "Forward")))
+```
+
+
+Setting testing dataset and features for left-footed players:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o_left <- as.h2o(data_left)
+data_split_left = h2o.splitFrame(data = data_h2o_left, ratios = 0.8, seed=2025)
+data_train_left = data_split_left[[1]]
+data_test_left = data_split_left[[2]]
+
+Y_left = "is_goal"
+X2_left = setdiff(h2o.names(data_train_left), Y_left)
+X1_left = c("distance_to_goal_line", "angle_to_goal")
+```
+
+Setting testing dataset and features:
+```{r}
+h2o.init(nthreads = -1, max_mem_size = "4G")
+data_h2o_right <- as.h2o(data_right)
+data_split_right = h2o.splitFrame(data = data_h2o_right, ratios = 0.8, seed=2025)
+data_train_right = data_split_right[[1]]
+data_test_right = data_split_right[[2]]
+
+Y_right = "is_goal"
+X2_right = setdiff(h2o.names(data_train_right), Y_right)
+X1_right = c("distance_to_goal_line", "angle_to_goal")
+```
+
+
+Loading left-footed model with all features:
+```{r}
+modelname2_left <- "GBM_2_AutoML_1_20251215_160153"
+cmod2_left <- h2o.loadModel(paste0("saved-models/", modelname2_left))
+```
+
+Loading right-footed model with all features:
+```{r}
+modelname2_right <- "GBM_2_AutoML_8_20251215_154156"
+cmod2_right <- h2o.loadModel(paste0("saved-models/", modelname2_right))
+```
+
+Loading left-footed model with only 2 features:
+```{r}
+modelname1_left <- "GBM_2_AutoML_1_20251215_160756"
+cmod1_left <- h2o.loadModel(paste0("saved-models/", modelname1_left))
+```
+
+Loading right-footed model with only 2 features:
+```{r}
+modelname1_right <- "GBM_2_AutoML_1_20251215_155305"
+cmod1_right <- h2o.loadModel(paste0("saved-models/", modelname1_right))
+```
+
+Results analysis left-footed players:
+```{r}
+pred_1_left <- h2o.predict(cmod1_left, newdata = data_test_left)
+pred_r_1_left <- as.data.frame(pred_1_left)
+
+pred_2_left <- h2o.predict(cmod2_left, newdata = data_test_left)
+pred_r_2_left <- as.data.frame(pred_2_left)
+```
+
+Results analysis right-footed players:
+```{r}
+pred_1_right <- h2o.predict(cmod1_right, newdata = data_test_right)
+pred_r_1_right <- as.data.frame(pred_1_right)
+
+pred_2_right <- h2o.predict(cmod2_right, newdata = data_test_right)
+pred_r_2_right <- as.data.frame(pred_2_right)
+```
+
+ROC curve:
+```{r}
+# Konverter H2O objekter til R dataframes
+data_test_left_df <- as.data.frame(data_test_left)
+data_test_right_df <- as.data.frame(data_test_right)
+
+# Left-footed ROC curves
+roc_left_2 <- roc(as.numeric(as.character(data_test_left_df$is_goal)), pred_r_1_left$p1)
+roc_left_all <- roc(as.numeric(as.character(data_test_left_df$is_goal)), pred_r_2_left$p1)
+
+# Right-footed ROC curves
+roc_right_2 <- roc(as.numeric(as.character(data_test_right_df$is_goal)), pred_r_1_right$p1)
+roc_right_all <- roc(as.numeric(as.character(data_test_right_df$is_goal)), pred_r_2_right$p1)
+
+# Plot all together
+plot(roc_left_all, col = "darkred", lwd = 2, main = "ROC Curves: Left vs Right all features")
+plot(roc_right_all, col = "darkblue", lwd = 2, add = TRUE)
+
+legend("bottomright", 
+       legend = c(paste0("Left all features (AUC: ", round(auc(roc_left_all), 3), ")"),
+                  paste0("Right all features (AUC: ", round(auc(roc_right_all), 3), ")")),
+       col = c("red", "darkred", "blue", "darkblue"), 
+       lwd = 2)
+```
+
+Save the plot:
+```{r}
+png(filename = "AUC_plot_foot_comparison_all.png", width = 8, height = 5, units = "in", res = 300)
+plot(roc_left_all, col = "darkred", lwd = 2, main = "ROC Curves: Left vs Right all features")
+plot(roc_right_all, col = "darkblue", lwd = 2, add = TRUE)
+
+legend("bottomright", 
+       legend = c(paste0("Left all features (AUC: ", round(auc(roc_left_all), 3), ")"),
+                  paste0("Right all features (AUC: ", round(auc(roc_right_all), 3), ")")),
+       col = c("red", "darkred", "blue", "darkblue"), 
+       lwd = 2)
+dev.off()
+```
+
+
+
+
+```{r}
+plot(roc_left_2, col = "red", lwd = 2, main = "ROC Curves: Left vs Right 2 features")
+plot(roc_right_2, col = "blue", lwd = 2, add = TRUE)
+
+legend("bottomright", 
+       legend = c(paste0("Left 2 features (AUC: ", round(auc(roc_left_2), 3), ")"),
+                  paste0("Right 2 features (AUC: ", round(auc(roc_right_2), 3), ")")),,
+       col = c("red", "blue"), 
+       lwd = 2)
+```
+
+Save the plot:
+```{r}
+png(filename = "AUC_plot_foot_comparison_2.png", width = 8, height = 5, units = "in", res = 300)
+plot(roc_left_2, col = "red", lwd = 2, main = "ROC Curves: Left vs Right 2 features")
+plot(roc_right_2, col = "blue", lwd = 2, add = TRUE)
+
+legend("bottomright", 
+       legend = c(paste0("Left 2 features (AUC: ", round(auc(roc_left_2), 3), ")"),
+                  paste0("Right 2 features (AUC: ", round(auc(roc_right_2), 3), ")")),,
+       col = c("red", "blue"), 
+       lwd = 2)
+dev.off()
+```
+
+
+
+Partial dependency plots
+```{r}
+custom_predict <- function(model, newdata) {
+  newdata_h2o <- as.h2o(newdata)
+  res <- as.data.frame(h2o.predict(model, newdata_h2o))
+  return(as.numeric(as.character(res$predict)))
+}
+
+# Left explainers
+data_test_left_df <- as.data.frame(data_test_left)
+
+explainer_left_2 <- DALEX::explain(
+  model = cmod1_left, 
+  data = data_test_left_df[, X1_left],
+  y = as.numeric(as.character(data_test_left_df[, Y_left])),
+  predict_function = custom_predict,
+  label = "Left 2 features"
+)
+
+explainer_left_all <- DALEX::explain(
+  model = cmod2_left, 
+  data = data_test_left_df[, X2_left],
+  y = as.numeric(as.character(data_test_left_df[, Y_left])),
+  predict_function = custom_predict,
+  label = "Left all features"
+)
+
+# Right explainers
+data_test_right_df <- as.data.frame(data_test_right)
+
+explainer_right_2 <- DALEX::explain(
+  model = cmod1_right, 
+  data = data_test_right_df[, X1_right],
+  y = as.numeric(as.character(data_test_right_df[, Y_right])),
+  predict_function = custom_predict,
+  label = "Right 2 features"
+)
+
+explainer_right_all <- DALEX::explain(
+  model = cmod2_right, 
+  data = data_test_right_df[, X2_right],
+  y = as.numeric(as.character(data_test_right_df[, Y_right])),
+  predict_function = custom_predict,
+  label = "Right all features"
+)
+```
+
+Partial dependency for distance
+```{r}
+pdp_left_2 <- partial_dependency(explainer_left_2, variables = "distance_to_goal_line")
+pdp_left_all <- partial_dependency(explainer_left_all, variables = "distance_to_goal_line")
+pdp_right_2 <- partial_dependency(explainer_right_2, variables = "distance_to_goal_line")
+pdp_right_all <- partial_dependency(explainer_right_all, variables = "distance_to_goal_line")
+```
+
+
+Plot comparison all features
+```{r}
+ggplot() +
+  geom_smooth(data = pdp_left_all, aes(x = `_x_`, y = `_yhat_`, color = "Left all features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  geom_smooth(data = pdp_right_all, aes(x = `_x_`, y = `_yhat_`, color = "Right all features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  scale_x_continuous(breaks = seq(0, 30, by = 5), limits = c(0, 30)) +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(x = "Distance to Goal Line (m)", 
+       y = "Average Prediction",
+       color = "Model",
+       title = "Partial Dependency: Left vs Right") +
+  theme_bw() +
+  theme(legend.position = "top")
+
+ggsave("Partial_distance_left_vs_right_all.png", width = 8, height = 5)
+```
+
+Plot comparison 2 features
+```{r}
+ggplot() +
+  geom_smooth(data = pdp_left_2, aes(x = `_x_`, y = `_yhat_`, color = "Left 2 features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  geom_smooth(data = pdp_right_2, aes(x = `_x_`, y = `_yhat_`, color = "Right 2 features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  scale_x_continuous(breaks = seq(0, 30, by = 5), limits = c(0, 30)) +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(x = "Distance to Goal Line (m)", 
+       y = "Average Prediction",
+       color = "Model",
+       title = "Partial Dependency: Left vs Right") +
+  theme_bw() +
+  theme(legend.position = "top")
+
+ggsave("Partial_distance_left_vs_right_2.png", width = 8, height = 5)
+```
+
+
+Partial dependency for angle
+```{r}
+pdp_left_2_angle <- partial_dependency(explainer_left_2, variables = "angle_to_goal")
+pdp_left_all_angle <- partial_dependency(explainer_left_all, variables = "angle_to_goal")
+pdp_right_2_angle <- partial_dependency(explainer_right_2, variables = "angle_to_goal")
+pdp_right_all_angle <- partial_dependency(explainer_right_all, variables = "angle_to_goal")
+```
+
+
+Plot comparison all features angle:
+```{r}
+ggplot() +
+  geom_smooth(data = pdp_left_all_angle, aes(x = `_x_`, y = `_yhat_`, color = "Left all features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  geom_smooth(data = pdp_right_all_angle, aes(x = `_x_`, y = `_yhat_`, color = "Right all features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  scale_x_continuous(breaks = seq(0, 100, by = 5), limits = c(0, 100)) +
+  scale_y_continuous(limits = c(0, 1))+
+  labs(x = "Angle to Goal (degrees)", 
+       y = "Average Prediction",
+       color = "Model",
+       title = "Partial Dependency: Left vs Right") +
+  theme_bw() +
+  theme(legend.position = "top")
+
+ggsave("Partial_angle_left_vs_right_all.png", width = 8, height = 5)
+```
+
+
+Plot comparison 2 features angle:
+```{r}
+ggplot() +
+  geom_smooth(data = pdp_left_2_angle, aes(x = `_x_`, y = `_yhat_`, color = "Left 2 features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  geom_smooth(data = pdp_right_2_angle, aes(x = `_x_`, y = `_yhat_`, color = "Right 2 features"), 
+              se = FALSE, method = "loess", size = 1.2) +
+  scale_x_continuous(breaks = seq(0, 100, by = 5), limits = c(0, 100)) +
+  scale_y_continuous(limits = c(0, 1))+
+  labs(x = "Angle to Goal (degrees)", 
+       y = "Average Prediction",
+       color = "Model",
+       title = "Partial Dependency: Left vs Right") +
+  theme_bw() +
+  theme(legend.position = "top")
+
+ggsave("Partial_angle_left_vs_right_2.png", width = 8, height = 5)
+```
+
+
+
+
+
+
+
+
