@@ -57,7 +57,7 @@ X2_left = setdiff(h2o.names(data_train_left), Y_left)
 X1_left = c("distance_to_goal_line", "angle_to_goal")
 ```
 
-Setting testing dataset and features:
+Setting testing dataset and features for right-footed players:
 ```{r}
 h2o.init(nthreads = -1, max_mem_size = "4G")
 data_h2o_right <- as.h2o(data_right)
@@ -73,13 +73,13 @@ X1_right = c("distance_to_goal_line", "angle_to_goal")
 
 Loading left-footed model with all features:
 ```{r}
-modelname2_left <- "GBM_2_AutoML_1_20251215_160153"
+modelname2_left <- "" #Insert modelname for left-footed players here
 cmod2_left <- h2o.loadModel(paste0("saved-models/", modelname2_left))
 ```
 
 Loading right-footed model with all features:
 ```{r}
-modelname2_right <- "GBM_2_AutoML_8_20251215_154156"
+modelname2_right <- "" #Insert modelname for right-footed players here
 cmod2_right <- h2o.loadModel(paste0("saved-models/", modelname2_right))
 ```
 
@@ -115,7 +115,7 @@ pred_r_2_right <- as.data.frame(pred_2_right)
 
 ROC curve:
 ```{r}
-# Konverter H2O objekter til R dataframes
+# Convert H2O objects to R dataframes
 data_test_left_df <- as.data.frame(data_test_left)
 data_test_right_df <- as.data.frame(data_test_right)
 
@@ -127,7 +127,7 @@ roc_left_all <- roc(as.numeric(as.character(data_test_left_df$is_goal)), pred_r_
 roc_right_2 <- roc(as.numeric(as.character(data_test_right_df$is_goal)), pred_r_1_right$p1)
 roc_right_all <- roc(as.numeric(as.character(data_test_right_df$is_goal)), pred_r_2_right$p1)
 
-# Plot all together
+# Plot together
 plot(roc_left_all, col = "darkred", lwd = 2, main = "ROC Curves: Left vs Right all features")
 plot(roc_right_all, col = "darkblue", lwd = 2, add = TRUE)
 
@@ -154,7 +154,7 @@ dev.off()
 
 
 
-
+Plot 2 feature models
 ```{r}
 plot(roc_left_2, col = "red", lwd = 2, main = "ROC Curves: Left vs Right 2 features")
 plot(roc_right_2, col = "blue", lwd = 2, add = TRUE)
@@ -324,6 +324,7 @@ ggplot() +
 
 ggsave("Partial_angle_left_vs_right_2.png", width = 8, height = 5)
 ```
+
 
 
 
