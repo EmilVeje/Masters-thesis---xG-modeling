@@ -59,7 +59,7 @@ lbdf <- as.data.frame(lb)
 
 Choosing GBM-model:
 ```{r}
-modelname <- "GBM_2_AutoML_8_20251215_154156" # write the chosen model name from the "lbdf" dataframe
+modelname <- "" # Insert model name from leaderboard here
 cmod <- grep(modelname, lbdf$model_id, value=T)
 cmod <- h2o.getModel(cmod)
 summary(cmod)
@@ -114,4 +114,5 @@ Save the model:
 h2o.saveModel(object = cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
 h2o.shutdown(prompt=FALSE)
 ```
+
 
