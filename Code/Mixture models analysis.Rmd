@@ -42,7 +42,7 @@ X = setdiff(h2o.names(data_train), c(Y, "x1", "y1"))
 
 Load models with all features:
 ```{r}
-modelname2 <- "" #write the model name here
+modelname2 <- "" # Insert model name here
 cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
 ```
 
@@ -470,16 +470,6 @@ ggsave("Gamma_mix_dens.png", plot = p_gamma, width = 8, height = 5)
 ggsave("Logit_norm_mix.png", plot = p_logitnorm, width = 8, height = 5)
 ```
 
-Summary:
-```{r}
-cat("\n=== SUMMARY ===\n")
-cat("Data range:", min(xg), "to", max(xg), "\n")
-cat("Mean xG:", mean(xg), "\n")
-cat("Median xG:", median(xg), "\n")
-cat("SD xG:", sd(xg), "\n\n")
-
-cat("Best model by BIC:", model_comparison$Model[which.min(model_comparison$BIC)], "\n")
-```
 
 
 
