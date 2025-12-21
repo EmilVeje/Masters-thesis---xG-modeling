@@ -170,14 +170,6 @@ custom_predict <- function(model, newdata) {
         res <- as.data.frame(h2o.predict(model, newdata_h2o))
         return(as.numeric(as.character(res$predict)))
 }
-
-explainer_gbm_1 <- DALEX::explain(model = cmod1, 
-                                    data = as.data.frame(data_test)[, X1],
-                                    y = as.numeric(as.character(as.data.frame(data_test)[, Y])),
-                                    predict_function = custom_predict,
-                                    label = "GBM 2")
-mp_gbm_1 <- model_performance(explainer_gbm_1)
-
 explainer_gbm_2 <- DALEX::explain(model = cmod2, 
                                     data = as.data.frame(data_test)[, X2],
                                     y = as.numeric(as.character(as.data.frame(data_test)[, Y])),
@@ -198,5 +190,6 @@ png(filename = "Partial_foot_left.png", width = 8, height = 5, units = "in", res
 plot(pdp_gbm_2_foot)
 dev.off()
 ```
+
 
 
