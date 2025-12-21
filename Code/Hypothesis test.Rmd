@@ -64,7 +64,7 @@ pred_left_r <- as.data.frame(as.numeric(as.character(pred_left)))
 pred_right_r <- as.data.frame(as.numeric(as.character(pred_right)))
 ```
 
-## T-test ##
+## T-test
 Create weak foot dataset:
 ```{r}
 data_weak <- data_to_mod %>% filter(skilled_foot == "No")
@@ -89,6 +89,7 @@ Compute t-test:
 t_test_result <- t.test(pred_left_r$p1, pred_right_r$p1, paired = TRUE)
 t_test_result
 ```
+
 
 
 
