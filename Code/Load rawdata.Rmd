@@ -66,13 +66,13 @@ ggplot(data = shots, aes(y = y1, x = x1)) +
         annotate_pitch(colour = "white",
                        fill   = "black",
                        limits = FALSE,
-                       dimensions = pitch_opta) +  # Explicitly set dimensions
+                       dimensions = pitch_opta) +
         theme_pitch() +
         theme(plot.background = element_rect(fill = "black"),
               title = element_text(colour = "white")) +
         coord_flip(xlim = c(51, 101),
                    ylim = c(-1, 101)) +
-        scale_x_reverse() +  # Add this to reverse the x-axis
+        scale_x_reverse() +
         geom_jitter(aes(fill = factor(is_goal2, levels = c("TRUE", "FALSE"))),
                     alpha = 0.3, shape = 21, size = 0.8) +
         facet_wrap(~is_goal2, nrow = 1) +
@@ -96,6 +96,7 @@ ggplot(data = shots, aes(y = y1, x = x1)) +
 
 ggsave("shots_plot.png", width = 10, height = 5)
 ```
+
 
 
 
