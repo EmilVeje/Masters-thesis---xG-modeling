@@ -70,7 +70,7 @@ shotsB_extra <- shots_extra %>%
 
 data_to_mod_extra <- shotsB_extra %>%
         dplyr::select(is_goal, eventSec, matchPeriod, x1, y1, is_CA, 
-                      time_prev, skilled_foot, distance_to_goal_line, angle_to_goal, position,                              Is_Rebound) %>%
+                      time_prev, skilled_foot, distance_to_goal_line, angle_to_goal, position, Is_Rebound) %>%
         mutate(is_goal = factor(is_goal),
                matchPeriod = factor(matchPeriod),
                is_CA = factor(is_CA),
@@ -215,7 +215,7 @@ data_right %>%
   select(is_goal, skilled_foot) %>%
   pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = value, fill = factor(is_goal))) +
-  geom_bar(position = "dodge") +  # Side-by-side bars
+  geom_bar(position = "dodge") +
   facet_wrap(~variable, scales = "free_x", ncol = 2) +
   scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
                     labels = c("No Goal", "Goal")) +
@@ -245,7 +245,7 @@ data_left %>%
   select(is_goal, skilled_foot) %>%
   pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = value, fill = factor(is_goal))) +
-  geom_bar(position = "dodge") +  # Side-by-side bars
+  geom_bar(position = "dodge") + 
   facet_wrap(~variable, scales = "free_x", ncol = 2) +
   scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
                     labels = c("No Goal", "Goal")) +
@@ -260,7 +260,7 @@ p1 <- data_right %>%
   select(is_goal, skilled_foot) %>%
   pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = value, fill = factor(is_goal))) +
-  geom_bar(position = "dodge") +  # Side-by-side bars
+  geom_bar(position = "dodge") +
   facet_wrap(~variable, scales = "free_x", ncol = 1,
              labeller = labeller(variable = c("skilled_foot" = "Right"))) +
   scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
@@ -273,7 +273,7 @@ p2 <- data_left %>%
   select(is_goal, skilled_foot) %>%
   pivot_longer(cols = -is_goal, names_to = "variable", values_to = "value") %>%
   ggplot(aes(x = value, fill = factor(is_goal))) +
-  geom_bar(position = "dodge") +  # Side-by-side bars
+  geom_bar(position = "dodge") +
   facet_wrap(~variable, scales = "free_x", ncol = 1,
              labeller = labeller(variable = c("skilled_foot" = "Left"))) +
   scale_fill_manual(values = c("0" = "#F8766D", "1" = "#00BFC4"),
@@ -314,6 +314,7 @@ ggsave("bars_plot_extra.png", width = 10, height = 5)
 plot_density(data_to_mod_extra, ncol = 3)
 ggsave("dens_plot_extra.png", width = 10, height = 5)
 ```
+
 
 
 
