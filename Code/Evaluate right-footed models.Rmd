@@ -46,7 +46,7 @@ X1 = c("distance_to_goal_line", "angle_to_goal")
 
 Loading model with all features:
 ```{r}
-modelname2 <- "GBM_2_AutoML_8_20251215_154156"
+modelname2 <- "" #Insert model name here
 cmod2 <- h2o.loadModel(paste0("saved-models/", modelname2))
 ```
 
@@ -83,7 +83,7 @@ pred_r$xG_bool <- ifelse(pred_r$p1 > best_thres, 1, 0)
 
 Loading model with only 2 features:
 ```{r}
-modelname1 <- "GBM_2_AutoML_1_20251215_155305"
+modelname1 <- "" #Insert model name here
 cmod1 <- h2o.loadModel(paste0("saved-models/", modelname1))
 ```
 
@@ -184,130 +184,19 @@ legend(x = "bottomright",
 dev.off()
 ```
 
-Partial dependency plots:
+Partial dependency plot skilled foot:
 ```{r}
 custom_predict <- function(model, newdata) {
         newdata_h2o <- as.h2o(newdata)
         res <- as.data.frame(h2o.predict(model, newdata_h2o))
         return(as.numeric(as.character(res$predict)))
 }
-
-explainer_gbm_1 <- DALEX::explain(model = cmod1, 
-                                    data = as.data.frame(data_test)[, X1],
-                                    y = as.numeric(as.character(as.data.frame(data_test)[, Y])),
-                                    predict_function = custom_predict,
-                                    label = "GBM 2")
-mp_gbm_1 <- model_performance(explainer_gbm_1)
-
 explainer_gbm_2 <- DALEX::explain(model = cmod2, 
                                     data = as.data.frame(data_test)[, X2],
                                     y = as.numeric(as.character(as.data.frame(data_test)[, Y])),
                                     predict_function = custom_predict,
                                     label = "GBM all")
 mp_gbm_2 <- model_performance(explainer_gbm_2)
-```
-
-Partial dependence distance to goal:
-```{r}
-pdp_gbm_1 <- partial_dependency(explainer_gbm_1, variables = "distance_to_goal_line")
-pdp_gbm_2 <- partial_dependency(explainer_gbm_2, variables = "distance_to_goal_line")
-```
-
-Plot with GGplot:
-```{r}
-ggplot() +
-  geom_smooth(data = pdp_gbm_1, aes(x = `_x_`, y = `_yhat_`, color = "GBM 2"), 
-              se = FALSE, method = "loess", size = 1) +
-  geom_smooth(data = pdp_gbm_2, aes(x = `_x_`, y = `_yhat_`, color = "GBM all"), 
-              se = FALSE, method = "loess", size = 1) +
-  scale_x_continuous(breaks = seq(0, 30, by = 5), limits = c(0, 30)) +
-  scale_y_continuous(limits = c(0, 1))+
-  labs(x = "Distance to Goal Line (m)", 
-       y = "Average Prediction",
-       color = "Model") +
-  theme_bw()
-
-ggsave("Partial_distance_right.png", width = 8, height = 5)
-```
-
-Rate of decline:
-```{r}
-# Calculate the rate of change (derivative) for each model
-calculate_rate <- function(pdp_data) {
-  pdp_data %>%
-    arrange(`_x_`) %>%
-    mutate(
-      xG_change = c(NA, diff(`_yhat_`)),
-      distance_change = c(NA, diff(`_x_`)),
-      rate_of_decline = xG_change / distance_change
-    )
-}
-
-gbm1_rate <- calculate_rate(pdp_gbm_1) %>% mutate(model = "GBM 2")
-gbm2_rate <- calculate_rate(pdp_gbm_2) %>% mutate(model = "GBM all")
-
-# Combine data
-combined_rates <- bind_rows(gbm1_rate, gbm2_rate)
-
-# Plot the rate of decline
-ggplot(combined_rates, aes(x = `_x_`, y = rate_of_decline, color = model)) +
-  geom_smooth(se = FALSE, method = "loess", size = 1.2) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
-  scale_x_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) +
-  scale_color_manual(values = c("GBM 2" = "#F8766D", "GBM all" = "#00BFC4")) +
-  labs(
-    x = "Distance to Goal Line (m)",
-    y = "Rate of xG Decline (per meter)",
-    color = "Model",
-    title = "How quickly does xG decrease with distance?",
-    subtitle = "Negative values = xG declining, steeper = faster decline"
-  ) +
-  theme_bw() +
-  theme(
-    plot.title = element_text(face = "bold", size = 12),
-    plot.subtitle = element_text(size = 10, color = "gray30")
-  )
-ggsave("xG_decline_rate_right.png", width = 10, height = 6)
-```
-
-Summary:
-```{r}
-# Optional: Summary statistics
-summary_stats <- combined_rates %>%
-  filter(`_x_` <= 40, !is.na(rate_of_decline)) %>%
-  group_by(model) %>%
-  summarise(
-    avg_decline_rate = mean(rate_of_decline, na.rm = TRUE),
-    steepest_decline = min(rate_of_decline, na.rm = TRUE),
-    distance_at_steepest = `_x_`[which.min(rate_of_decline)]
-  )
-
-print(summary_stats)
-```
-
-Partial dependency angle to goal:
-```{r}
-pdp_gbm_1_angle <- partial_dependency(explainer_gbm_1, variables = "angle_to_goal")
-pdp_gbm_2_angle <- partial_dependency(explainer_gbm_2, variables = "angle_to_goal")
-```
-
-
-
-Plot with GGplot:
-```{r}
-ggplot() +
-  geom_smooth(data = pdp_gbm_1_angle, aes(x = `_x_`, y = `_yhat_`, color = "GBM 2"), 
-              se = FALSE, method = "loess", size = 1) +
-  geom_smooth(data = pdp_gbm_2_angle, aes(x = `_x_`, y = `_yhat_`, color = "GBM all"), 
-              se = FALSE, method = "loess", size = 1) +
-  scale_x_continuous(breaks = seq(0, 90, by = 5), limits = c(0, 90)) +
-  scale_y_continuous(limits = c(0, 1))+  # Customize breaks here
-  labs(x = "Angle to Goal (degrees)", 
-       y = "Average Prediction",
-       color = "Model") +
-  theme_bw()
-
-ggsave("Partial_angle_right.png", width = 8, height = 5)
 ```
 
 
@@ -322,6 +211,7 @@ png(filename = "Partial_foot_right.png", width = 8, height = 5, units = "in", re
 plot(pdp_gbm_2_foot)
 dev.off()
 ```
+
 
 
 
