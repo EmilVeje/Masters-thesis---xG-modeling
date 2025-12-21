@@ -41,7 +41,7 @@ lbdf <- as.data.frame(lb)
 
 Choosing GBM-model:
 ```{r}
-modelname <- "GBM_2_AutoML_7_20251215_152444" # write the chosen model name from the "lbdf" dataframe
+modelname <- "" # Insert model name from leaderboard here
 cmod <- grep(modelname, lbdf$model_id, value=T)
 cmod <- h2o.getModel(cmod)
 summary(cmod)
@@ -56,7 +56,7 @@ h2o.saveModel(object = cmod, path = paste0(getwd(), "/saved-models"), force = TR
 Choosing GLM-model:
 ```{r}
 set.seed(2025)
-GLM_modelname <- "GLM_1_AutoML_1_20251218_95643" # write the chosen model name from the "lbdf" dataframe
+GLM_modelname <- "" # Insert model name from leaderboard here
 GLM_cmod <- grep(GLM_modelname, lbdf$model_id, value=T)
 GLM_cmod <- h2o.getModel(GLM_cmod)
 summary(GLM_cmod)
@@ -68,5 +68,6 @@ set.seed(2025)
 h2o.saveModel(object = GLM_cmod, path = paste0(getwd(), "/saved-models"), force = TRUE)
 h2o.shutdown(prompt=FALSE)
 ```
+
 
 
